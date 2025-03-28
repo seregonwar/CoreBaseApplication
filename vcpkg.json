@@ -1,0 +1,15 @@
+{
+    "name": "corebaseapplication",
+    "version": "1.0.0",
+    "dependencies": [
+        "nlohmann-json",
+        "gtest"
+    ],
+    "builtin-baseline": "e2e3f654bc45c28f2696ace32d66f28429bb3b28",
+    "overrides": [
+        {
+            "name": "nlohmann-json",
+            "version": "3.11.3"
+        }
+    ]
+} 

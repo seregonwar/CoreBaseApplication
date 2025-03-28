@@ -2,7 +2,13 @@
 
 #include <string>
 #include <memory>
-#include <vector>
+#include "ConfigManager.h"
+#include "ResourceManager.h"
+#include "ModuleManager.h"
+#include "ErrorHandler.h"
+#include "IPCManager.h"
+
+namespace CoreNS {
 
 // Forward declarations
 class ModuleLoader;
@@ -18,9 +24,8 @@ class Core {
 public:
     /**
      * @brief Costruttore del Core
-     * @param configPath Percorso del file di configurazione
      */
-    Core(const std::string& configPath = "config.json");
+    Core();
     
     /**
      * @brief Distruttore del Core
@@ -29,58 +34,54 @@ public:
     
     /**
      * @brief Inizializza il Core e i suoi componenti
+     * @param configPath Percorso del file di configurazione
      * @return true se l'inizializzazione è avvenuta con successo, false altrimenti
      */
-    bool initialize();
-    
-    /**
-     * @brief Avvia il ciclo principale dell'applicazione
-     * @return Codice di uscita dell'applicazione
-     */
-    int run();
+    bool initialize(const std::string& configPath);
     
     /**
      * @brief Arresta il Core e libera le risorse
      */
-    void shutdown();
+    bool shutdown();
     
     /**
      * @brief Ottiene l'istanza del ConfigManager
      * @return Riferimento al ConfigManager
      */
-    ConfigManager& getConfigManager() const;
+    std::shared_ptr<ConfigManager> getConfigManager() const { return m_configManager; }
     
     /**
      * @brief Ottiene l'istanza del ResourceManager
      * @return Riferimento al ResourceManager
      */
-    ResourceManager& getResourceManager() const;
+    std::shared_ptr<ResourceManager> getResourceManager() const { return m_resourceManager; }
     
     /**
      * @brief Ottiene l'istanza del ModuleLoader
      * @return Riferimento al ModuleLoader
      */
-    ModuleLoader& getModuleLoader() const;
+    std::shared_ptr<ModuleManager> getModuleManager() const { return m_moduleLoader; }
     
     /**
      * @brief Ottiene l'istanza dell'ErrorHandler
      * @return Riferimento all'ErrorHandler
      */
-    ErrorHandler& getErrorHandler() const;
+    std::shared_ptr<ErrorHandler> getErrorHandler() const { return m_errorHandler; }
     
     /**
      * @brief Ottiene l'istanza dell'IPCManager
      * @return Riferimento all'IPCManager
      */
-    IPCManager& getIPCManager() const;
+    std::shared_ptr<IPCManager> getIPCManager() const { return m_ipcManager; }
     
 private:
-    std::string m_configPath;
-    bool m_isRunning;
+    bool m_isInitialized{false};
     
-    std::unique_ptr<ConfigManager> m_configManager;
-    std::unique_ptr<ResourceManager> m_resourceManager;
-    std::unique_ptr<ModuleLoader> m_moduleLoader;
-    std::unique_ptr<ErrorHandler> m_errorHandler;
-    std::unique_ptr<IPCManager> m_ipcManager;
+    std::shared_ptr<ConfigManager> m_configManager;
+    std::shared_ptr<ResourceManager> m_resourceManager;
+    std::shared_ptr<ModuleManager> m_moduleLoader;
+    std::shared_ptr<ErrorHandler> m_errorHandler;
+    std::shared_ptr<IPCManager> m_ipcManager;
 };
+
+} // namespace CoreNS

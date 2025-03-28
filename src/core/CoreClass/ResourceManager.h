@@ -1,11 +1,17 @@
 #pragma once
 
 #include <string>
-#include <unordered_map>
-#include <memory>
 #include <vector>
-#include <mutex>
 #include <functional>
+#include <thread>
+#include <atomic>
+#include <cstdint>
+#include <unordered_map>
+#include <mutex>
+#include <memory>
+#include "SystemResources.h"
+
+namespace CoreNS {
 
 /**
  * @brief Enum che definisce i tipi di risorse monitorabili
@@ -15,23 +21,13 @@ enum class ResourceType {
     MEMORY,
     DISK,
     NETWORK,
-    GPU
+    GPU,
+    UNKNOWN
 };
 
-/**
- * @brief Struct che contiene informazioni sulle risorse di sistema
- */
-struct SystemResources {
-    int cpuUsagePercent;
-    uint64_t availableMemoryBytes;
-    uint64_t totalMemoryBytes;
-    uint64_t availableDiskBytes;
-    uint64_t totalDiskBytes;
-    int networkUsagePercent;
-    int gpuUsagePercent;
-    uint64_t availableGpuMemoryBytes;
-    uint64_t totalGpuMemoryBytes;
-};
+using ResourceCallback = std::function<void(const SystemResources&)>;
+
+class ErrorHandler;
 
 /**
  * @brief Classe per la gestione e il monitoraggio delle risorse di sistema
@@ -49,10 +45,15 @@ public:
     ~ResourceManager();
     
     /**
-     * @brief Inizializza il ResourceManager
+     * @brief Inizializza il monitoraggio delle risorse
      * @return true se l'inizializzazione è avvenuta con successo, false altrimenti
      */
     bool initialize();
+    
+    /**
+     * @brief Arresta il monitoraggio delle risorse
+     */
+    void shutdown();
     
     /**
      * @brief Ottiene la quantità di memoria disponibile
@@ -61,47 +62,34 @@ public:
     uint64_t getAvailableMemory() const;
     
     /**
-     * @brief Ottiene la memoria totale
-     * @return Memoria totale in bytes
-     */
-    uint64_t getTotalMemory() const;
-    
-    /**
      * @brief Ottiene l'utilizzo della CPU
      * @return Percentuale di utilizzo della CPU (0-100)
      */
-    int getCpuUsage() const;
+    double getCpuUsage() const;
     
     /**
-     * @brief Ottiene lo spazio disponibile su disco
-     * @param path Percorso del disco (default = directory corrente)
-     * @return Spazio disponibile in bytes
+     * @brief Ottiene l'utilizzo della memoria
+     * @return Percentuale di utilizzo della memoria (0-100)
      */
-    uint64_t getDiskSpace(const std::string& path = ".") const;
+    double getMemoryUsage() const;
     
     /**
-     * @brief Ottiene lo spazio totale su disco
-     * @param path Percorso del disco (default = directory corrente)
-     * @return Spazio totale in bytes
+     * @brief Ottiene l'utilizzo del disco
+     * @return Percentuale di utilizzo del disco (0-100)
      */
-    uint64_t getTotalDiskSpace(const std::string& path = ".") const;
+    double getDiskUsage() const;
     
     /**
-     * @brief Registra una callback da eseguire quando l'utilizzo di una risorsa supera una soglia
-     * @param type Tipo di risorsa da monitorare
-     * @param thresholdPercent Soglia percentuale (0-100)
-     * @param callback Funzione da eseguire quando la soglia viene superata
-     * @return ID della callback registrata
+     * @brief Ottiene l'utilizzo della rete
+     * @return Percentuale di utilizzo della rete (0-100)
      */
-    int registerThresholdCallback(ResourceType type, int thresholdPercent, 
-                                 std::function<void(int currentUsage)> callback);
+    double getNetworkUsage() const;
     
     /**
-     * @brief Rimuove una callback registrata
-     * @param callbackId ID della callback da rimuovere
-     * @return true se la callback è stata rimossa, false se non esisteva
+     * @brief Ottiene l'utilizzo della GPU
+     * @return Percentuale di utilizzo della GPU (0-100)
      */
-    bool unregisterThresholdCallback(int callbackId);
+    double getGpuUsage() const;
     
     /**
      * @brief Ottiene un snapshot completo delle risorse di sistema
@@ -109,21 +97,46 @@ public:
      */
     SystemResources getSystemResources() const;
     
+    /**
+     * @brief Registra una callback da eseguire quando l'utilizzo di una risorsa supera una soglia
+     * @param callback Funzione da eseguire quando la soglia viene superata
+     */
+    void registerCallback(const ResourceCallback& callback);
+    
+    /**
+     * @brief Rimuove una callback registrata
+     * @param callback Funzione da rimuovere
+     */
+    void unregisterCallback(const ResourceCallback& callback);
+    
 private:
-    std::mutex m_mutex;
-    std::unordered_map<int, std::pair<ResourceType, std::function<void(int)>>> m_callbacks;
-    int m_nextCallbackId;
-    
-    /**
-     * @brief Aggiorna le informazioni sulle risorse
-     */
-    void updateResourceInfo();
-    
-    /**
-     * @brief Controlla se le soglie sono state superate e chiama le callback
-     */
-    void checkThresholds();
-    
-    // Informazioni sulle risorse
+    // Struttura per le callback dei threshold
+    struct ThresholdCallback {
+        int id;
+        ResourceType type;
+        int threshold;
+        std::function<void(int)> callback;
+    };
+
+    // Thread di monitoraggio
+    std::thread m_monitoringThread;
+    std::atomic<bool> m_stopMonitoring{false};
+
+    // Stato delle risorse
     SystemResources m_resources;
+    std::vector<ThresholdCallback> m_thresholdCallbacks;
+    int m_lastCallbackId{0};
+
+    // Metodi privati per il monitoraggio
+    void updateResources();
+    void checkThresholds();
+
+    std::unordered_map<int, std::pair<std::string, ResourceCallback>> m_callbacks;
+    mutable std::mutex m_mutex;
+    int m_nextCallbackId;
+
+    std::shared_ptr<ErrorHandler> m_errorHandler;
+    SystemResources m_currentResources;
 };
+
+} // namespace CoreNS

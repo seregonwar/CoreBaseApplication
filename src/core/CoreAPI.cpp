@@ -2,470 +2,399 @@
 #include "CoreClass/Core.h"
 #include "CoreClass/ConfigManager.h"
 #include "CoreClass/ResourceManager.h"
-#include "CoreClass/ModuleLoader.h"
+#include "CoreClass/ModuleManager.h"
 #include "CoreClass/ErrorHandler.h"
 #include "CoreClass/IPCManager.h"
 #include "bindings/bridge/PythonBridge/PythonBridge.h"
 #include "bindings/bridge/JavaBridge/JavaBridge.h"
+#include <nlohmann/json.hpp>
+#include "CoreClass/LogManager.h"
+
+using json = nlohmann::json;
 
 #include <unordered_map>
 #include <iostream>
-#include <json.hpp> // Assumiamo l'uso di nlohmann/json per la gestione JSON
+#include <filesystem>
 
-// Alias per JSON library
-using json = nlohmann::json;
+namespace fs = std::filesystem;
 
-/**
- * @brief Classe di implementazione nascosta (Pimpl idiom)
- */
-class CoreAPIImpl {
-public:
-    CoreAPIImpl(const std::string& configPath)
-        : m_core(configPath), 
-          m_resourceCallbacks(), 
-          m_lastCallbackId(0) {
-    }
+namespace CoreNS {
 
-    ~CoreAPIImpl() {
-        // Assicuriamoci che il core sia shutdown in caso non lo sia già
-        if (m_isInitialized) {
-            m_core.shutdown();
-        }
+CoreAPI::CoreAPIImpl::CoreAPIImpl() : m_core(nullptr), m_configManager(nullptr), m_resourceManager(nullptr),
+                   m_moduleManager(nullptr), m_errorHandler(nullptr), m_ipcManager(nullptr) {
+    m_core = std::make_shared<Core>();
+    if (m_core) {
+        m_configManager = m_core->getConfigManager();
+        m_resourceManager = m_core->getResourceManager();
+        m_moduleManager = m_core->getModuleManager();
+        m_errorHandler = m_core->getErrorHandler();
+        m_ipcManager = m_core->getIPCManager();
     }
+}
 
-    // Puntatore al core
-    Core m_core;
-    
-    // Stato dell'inizializzazione
-    bool m_isInitialized = false;
-    
-    // Cache per le callback sulle risorse
-    std::unordered_map<int, std::pair<std::string, APIResourceCallback>> m_resourceCallbacks;
-    int m_lastCallbackId;
-    
-    // Converte un enum interno in un enum API
-    APILogLevel convertToAPILogLevel(LogLevel level) {
-        switch (level) {
-            case LogLevel::DEBUG: return APILogLevel::DEBUG;
-            case LogLevel::INFO: return APILogLevel::INFO;
-            case LogLevel::WARNING: return APILogLevel::WARNING;
-            case LogLevel::ERROR: return APILogLevel::ERROR;
-            case LogLevel::FATAL: return APILogLevel::FATAL;
-            default: return APILogLevel::INFO;
-        }
-    }
-    
-    // Converte un enum API in un enum interno
-    LogLevel convertFromAPILogLevel(APILogLevel level) {
-        switch (level) {
-            case APILogLevel::DEBUG: return LogLevel::DEBUG;
-            case APILogLevel::INFO: return LogLevel::INFO;
-            case APILogLevel::WARNING: return LogLevel::WARNING;
-            case APILogLevel::ERROR: return LogLevel::ERROR;
-            case APILogLevel::FATAL: return LogLevel::FATAL;
-            default: return LogLevel::INFO;
-        }
-    }
-    
-    // Converte un ModuleType in APIModuleType
-    APIModuleType convertToAPIModuleType(ModuleType type) {
-        switch (type) {
-            case ModuleType::CPP: return APIModuleType::CPP;
-            case ModuleType::PYTHON: return APIModuleType::PYTHON;
-            case ModuleType::JAVA: return APIModuleType::JAVA;
-            default: return APIModuleType::CPP;
-        }
-    }
-    
-    // Converte un IPCType in APIIPCType
-    APIIPCType convertToAPIIPCType(IPCType type) {
-        switch (type) {
-            case IPCType::SHARED_MEMORY: return APIIPCType::SHARED_MEMORY;
-            case IPCType::NAMED_PIPE: return APIIPCType::NAMED_PIPE;
-            case IPCType::SOCKET: return APIIPCType::SOCKET;
-            case IPCType::MESSAGE_QUEUE: return APIIPCType::MESSAGE_QUEUE;
-            default: return APIIPCType::SHARED_MEMORY;
-        }
-    }
-    
-    // Converte un APIIPCType in IPCType
-    IPCType convertFromAPIIPCType(APIIPCType type) {
-        switch (type) {
-            case APIIPCType::SHARED_MEMORY: return IPCType::SHARED_MEMORY;
-            case APIIPCType::NAMED_PIPE: return IPCType::NAMED_PIPE;
-            case APIIPCType::SOCKET: return IPCType::SOCKET;
-            case APIIPCType::MESSAGE_QUEUE: return IPCType::MESSAGE_QUEUE;
-            default: return IPCType::SHARED_MEMORY;
-        }
-    }
-    
-    // Converte un APIIPCRole in IPCRole
-    IPCRole convertFromAPIIPCRole(APIIPCRole role) {
-        switch (role) {
-            case APIIPCRole::SERVER: return IPCRole::SERVER;
-            case APIIPCRole::CLIENT: return IPCRole::CLIENT;
-            default: return IPCRole::SERVER;
-        }
-    }
-    
-    // Converte una stringa in ResourceType
-    ResourceType getResourceTypeFromString(const std::string& resourceType) {
-        if (resourceType == "cpu") return ResourceType::CPU;
-        if (resourceType == "memory") return ResourceType::MEMORY;
-        if (resourceType == "disk") return ResourceType::DISK;
-        if (resourceType == "network") return ResourceType::NETWORK;
-        if (resourceType == "gpu") return ResourceType::GPU;
-        
-        // Default a CPU se non riconosciuto
-        return ResourceType::CPU;
-    }
+CoreAPI::CoreAPIImpl::~CoreAPIImpl() = default;
 
-    // Converte un ModuleInfo in APIModuleInfo
-    APIModuleInfo convertToAPIModuleInfo(const ModuleInfo* info) {
+// Funzioni di conversione
+namespace {
+    APIModuleInfo convertToAPIModuleInfo(const ModuleInfo& info) {
         APIModuleInfo apiInfo;
-        if (info) {
-            apiInfo.name = info->name;
-            apiInfo.version = info->version;
-            apiInfo.author = info->author;
-            apiInfo.description = info->description;
-            apiInfo.type = convertToAPIModuleType(info->type);
-            apiInfo.dependencies = info->dependencies;
-            apiInfo.isLoaded = info->isLoaded;
-        }
+        apiInfo.name = info.name;
+        apiInfo.version = info.version;
+        apiInfo.description = info.description;
+        apiInfo.author = info.author;
+        apiInfo.type = std::to_string(static_cast<int>(info.type));
+        apiInfo.dependencies = info.dependencies;
+        apiInfo.isLoaded = info.isLoaded;
         return apiInfo;
     }
-    
-    // Converte un SystemResources in APISystemResources
-    APISystemResources convertToAPISystemResources(const SystemResources& res) {
-        APISystemResources apiRes;
-        apiRes.cpuUsagePercent = res.cpuUsagePercent;
-        apiRes.availableMemoryBytes = res.availableMemoryBytes;
-        apiRes.totalMemoryBytes = res.totalMemoryBytes;
-        apiRes.availableDiskBytes = res.availableDiskBytes;
-        apiRes.totalDiskBytes = res.totalDiskBytes;
-        apiRes.networkUsagePercent = res.networkUsagePercent;
-        apiRes.gpuUsagePercent = res.gpuUsagePercent;
-        return apiRes;
+
+    APISystemResources convertToAPISystemResources(const SystemResources& resources) {
+        APISystemResources apiResources;
+        apiResources.cpuUsagePercent = resources.cpuUsagePercent;
+        apiResources.availableMemoryBytes = resources.availableMemoryBytes;
+        apiResources.totalMemoryBytes = resources.totalMemoryBytes;
+        apiResources.availableDiskBytes = resources.availableDiskBytes;
+        apiResources.totalDiskBytes = resources.totalDiskBytes;
+        apiResources.networkUsagePercent = resources.networkUsagePercent;
+        apiResources.gpuUsagePercent = resources.gpuUsagePercent;
+        return apiResources;
     }
-};
 
-//------------------------------------------------------------------
-// Implementazione di CoreAPI
-//------------------------------------------------------------------
+    IPCRole convertFromAPIIPCRole(APIIPCRole role) {
+        return static_cast<IPCRole>(role);
+    }
 
-CoreAPI::CoreAPI(const std::string& configPath)
-    : m_impl(std::make_unique<CoreAPIImpl>(configPath)) {
+    IPCType convertFromAPIIPCType(APIIPCType type) {
+        return static_cast<IPCType>(type);
+    }
+
+    ResourceType getResourceTypeFromString(const std::string& type) {
+        if (type == "cpu") return ResourceType::CPU;
+        if (type == "memory") return ResourceType::MEMORY;
+        if (type == "disk") return ResourceType::DISK;
+        if (type == "network") return ResourceType::NETWORK;
+        if (type == "gpu") return ResourceType::GPU;
+        return ResourceType::UNKNOWN;
+    }
 }
 
-CoreAPI::~CoreAPI() {
-    // L'implementazione Pimpl si occupa di gestire la pulizia
+CoreAPI::CoreAPI() : m_impl(std::make_unique<CoreAPIImpl>()) {
 }
 
-bool CoreAPI::initialize() {
-    if (!m_impl->m_isInitialized) {
-        m_impl->m_isInitialized = m_impl->m_core.initialize();
-    }
-    return m_impl->m_isInitialized;
+CoreAPI::~CoreAPI() = default;
+
+bool CoreAPI::initialize(const std::string& configPath) {
+    return m_impl->m_core->initialize(configPath);
 }
 
 void CoreAPI::shutdown() {
-    if (m_impl->m_isInitialized) {
-        m_impl->m_core.shutdown();
-        m_impl->m_isInitialized = false;
-    }
+    m_impl->m_core->shutdown();
 }
 
-//------------------------------------------------------------------
-// Gestione configurazioni
-//------------------------------------------------------------------
-
 bool CoreAPI::loadConfig(const std::string& filePath) {
-    return m_impl->m_core.getConfigManager().load(filePath);
+    if (!m_impl || !m_impl->m_configManager) {
+        return false;
+    }
+    return m_impl->m_configManager->loadConfig(filePath);
 }
 
 bool CoreAPI::saveConfig(const std::string& filePath) {
-    return m_impl->m_core.getConfigManager().save(filePath);
+    if (!m_impl || !m_impl->m_configManager) {
+        return false;
+    }
+    return m_impl->m_configManager->saveConfig(filePath);
 }
 
 std::string CoreAPI::getConfigString(const std::string& key, const std::string& defaultValue) {
-    return m_impl->m_core.getConfigManager().get<std::string>(key, defaultValue);
+    if (!m_impl || !m_impl->m_configManager) {
+        return defaultValue;
+    }
+    return m_impl->m_configManager->getValue<std::string>(key, defaultValue);
 }
 
 int CoreAPI::getConfigInt(const std::string& key, int defaultValue) {
-    return m_impl->m_core.getConfigManager().get<int>(key, defaultValue);
+    if (!m_impl || !m_impl->m_configManager) {
+        return defaultValue;
+    }
+    return m_impl->m_configManager->getValue<int>(key, defaultValue);
 }
 
 double CoreAPI::getConfigDouble(const std::string& key, double defaultValue) {
-    return m_impl->m_core.getConfigManager().get<double>(key, defaultValue);
+    if (!m_impl || !m_impl->m_configManager) {
+        return defaultValue;
+    }
+    return m_impl->m_configManager->getValue<double>(key, defaultValue);
 }
 
 bool CoreAPI::getConfigBool(const std::string& key, bool defaultValue) {
-    return m_impl->m_core.getConfigManager().get<bool>(key, defaultValue);
+    if (!m_impl || !m_impl->m_configManager) {
+        return defaultValue;
+    }
+    return m_impl->m_configManager->getValue<bool>(key, defaultValue);
 }
 
 void CoreAPI::setConfig(const std::string& key, const std::string& value) {
-    m_impl->m_core.getConfigManager().set(key, value);
+    if (m_impl && m_impl->m_configManager) {
+        m_impl->m_configManager->setValue<std::string>(key, value);
+    }
 }
 
 void CoreAPI::setConfig(const std::string& key, int value) {
-    m_impl->m_core.getConfigManager().set(key, value);
+    if (m_impl && m_impl->m_configManager) {
+        m_impl->m_configManager->setValue<int>(key, value);
+    }
 }
 
 void CoreAPI::setConfig(const std::string& key, double value) {
-    m_impl->m_core.getConfigManager().set(key, value);
+    if (m_impl && m_impl->m_configManager) {
+        m_impl->m_configManager->setValue<double>(key, value);
+    }
 }
 
 void CoreAPI::setConfig(const std::string& key, bool value) {
-    m_impl->m_core.getConfigManager().set(key, value);
+    if (m_impl && m_impl->m_configManager) {
+        m_impl->m_configManager->setValue<bool>(key, value);
+    }
 }
 
-//------------------------------------------------------------------
-// Gestione moduli
-//------------------------------------------------------------------
-
-bool CoreAPI::loadModule(const std::string& modulePath) {
-    return m_impl->m_core.getModuleLoader().load(modulePath);
+bool CoreAPI::loadModule(const std::string& moduleName) {
+    if (m_impl->m_moduleManager) {
+        return m_impl->m_moduleManager->loadModule(moduleName);
+    }
+    return false;
 }
 
 bool CoreAPI::unloadModule(const std::string& moduleName) {
-    return m_impl->m_core.getModuleLoader().unload(moduleName);
+    if (m_impl->m_moduleManager) {
+        return m_impl->m_moduleManager->unloadModule(moduleName);
+    }
+    return false;
 }
 
 bool CoreAPI::isModuleLoaded(const std::string& moduleName) const {
-    return m_impl->m_core.getModuleLoader().isLoaded(moduleName);
-}
-
-APIModuleInfo CoreAPI::getModuleInfo(const std::string& moduleName) const {
-    const ModuleInfo* info = m_impl->m_core.getModuleLoader().getModuleInfo(moduleName);
-    return m_impl->convertToAPIModuleInfo(info);
+    if (m_impl->m_moduleManager) {
+        return m_impl->m_moduleManager->isModuleLoaded(moduleName);
+    }
+    return false;
 }
 
 std::vector<std::string> CoreAPI::getLoadedModules() const {
-    return m_impl->m_core.getModuleLoader().getLoadedModules();
+    if (m_impl->m_moduleManager) {
+        return m_impl->m_moduleManager->getLoadedModules();
+    }
+    return std::vector<std::string>();
 }
 
-//------------------------------------------------------------------
-// Logging e gestione errori
-//------------------------------------------------------------------
+APIModuleInfo CoreAPI::getModuleInfo(const std::string& moduleName) const {
+    APIModuleInfo info;
+    if (m_impl->m_moduleManager) {
+        auto moduleInfo = m_impl->m_moduleManager->getModuleInfo(moduleName);
+        if (moduleInfo) {
+            info.name = moduleInfo->name;
+            info.version = moduleInfo->version;
+            info.description = moduleInfo->description;
+            info.author = moduleInfo->author;
+            info.type = std::to_string(static_cast<int>(moduleInfo->type));
+            info.dependencies = moduleInfo->dependencies;
+            info.isLoaded = moduleInfo->isLoaded;
+        }
+    }
+    return info;
+}
 
-void CoreAPI::log(APILogLevel level, const std::string& message, 
-                 const std::string& sourceFile, int lineNumber, 
-                 const std::string& functionName) {
-    m_impl->m_core.getErrorHandler().log(
-        m_impl->convertFromAPILogLevel(level),
-        message,
-        sourceFile,
-        lineNumber,
-        functionName
-    );
+void CoreAPI::log(APILogLevel level, const std::string& message, const std::string& source, int line) {
+    if (m_impl && m_impl->m_errorHandler) {
+        m_impl->m_errorHandler->log(static_cast<LogLevel>(level), message);
+    }
 }
 
 void CoreAPI::logError(const std::string& errorMessage) {
-    ErrorHandler::logError(errorMessage);
+    log(APILogLevel::ERROR, errorMessage);
 }
 
 void CoreAPI::logWarning(const std::string& warningMessage) {
-    ErrorHandler::logWarning(warningMessage);
+    log(APILogLevel::WARNING, warningMessage);
 }
 
 void CoreAPI::logInfo(const std::string& infoMessage) {
-    ErrorHandler::logInfo(infoMessage);
+    log(APILogLevel::INFO, infoMessage);
 }
 
 void CoreAPI::logDebug(const std::string& debugMessage) {
-    ErrorHandler::logDebug(debugMessage);
+    log(APILogLevel::DEBUG, debugMessage);
 }
 
 void CoreAPI::setLogLevel(APILogLevel level) {
-    m_impl->m_core.getErrorHandler().setLogLevel(m_impl->convertFromAPILogLevel(level));
+    if (m_impl && m_impl->m_errorHandler) {
+        m_impl->m_errorHandler->setLogLevel(static_cast<LogLevel>(level));
+    }
 }
 
-//------------------------------------------------------------------
-// Gestione risorse
-//------------------------------------------------------------------
+double CoreAPI::getCpuUsage() const {
+    if (m_impl->m_resourceManager) {
+        return m_impl->m_resourceManager->getCpuUsage();
+    }
+    return 0.0;
+}
+
+double CoreAPI::getMemoryUsage() const {
+    if (!m_impl || !m_impl->m_resourceManager) {
+        return 0.0;
+    }
+    return m_impl->m_resourceManager->getMemoryUsage();
+}
+
+double CoreAPI::getDiskUsage() const {
+    if (!m_impl || !m_impl->m_resourceManager) {
+        return 0.0;
+    }
+    return m_impl->m_resourceManager->getDiskUsage();
+}
+
+double CoreAPI::getNetworkUsage() const {
+    if (!m_impl || !m_impl->m_resourceManager) {
+        return 0.0;
+    }
+    return m_impl->m_resourceManager->getNetworkUsage();
+}
+
+double CoreAPI::getGpuUsage() const {
+    if (!m_impl || !m_impl->m_resourceManager) {
+        return 0.0;
+    }
+    return m_impl->m_resourceManager->getGpuUsage();
+}
 
 APISystemResources CoreAPI::getSystemResources() const {
-    SystemResources res = m_impl->m_core.getResourceManager().getSystemResources();
-    return m_impl->convertToAPISystemResources(res);
-}
-
-uint64_t CoreAPI::getAvailableMemory() const {
-    return m_impl->m_core.getResourceManager().getAvailableMemory();
-}
-
-int CoreAPI::getCpuUsage() const {
-    return m_impl->m_core.getResourceManager().getCpuUsage();
-}
-
-int CoreAPI::registerResourceCallback(const std::string& resourceType, int thresholdPercent, 
-                                     APIResourceCallback callback) {
-    // Convertire il tipo di risorsa
-    ResourceType type = m_impl->getResourceTypeFromString(resourceType);
-    
-    // Wrapper per la callback
-    auto wrapper = [callback](int usage) {
-        callback(usage);
-    };
-    
-    // Registrare la callback nel ResourceManager
-    int id = m_impl->m_core.getResourceManager().registerThresholdCallback(type, thresholdPercent, wrapper);
-    
-    // Memorizzare la callback nel nostro registro interno per gestione memoria
-    if (id >= 0) {
-        m_impl->m_resourceCallbacks[id] = std::make_pair(resourceType, callback);
+    APISystemResources resources;
+    if (m_impl->m_resourceManager) {
+        auto sysResources = m_impl->m_resourceManager->getSystemResources();
+        resources.cpuUsagePercent = sysResources.cpuUsagePercent;
+        resources.availableMemoryBytes = sysResources.availableMemoryBytes;
+        resources.totalMemoryBytes = sysResources.totalMemoryBytes;
+        resources.availableDiskBytes = sysResources.availableDiskBytes;
+        resources.totalDiskBytes = sysResources.totalDiskBytes;
+        resources.networkUsagePercent = sysResources.networkUsagePercent;
+        resources.gpuUsagePercent = sysResources.gpuUsagePercent;
     }
-    
-    return id;
+    return resources;
 }
 
-//------------------------------------------------------------------
-// Comunicazione IPC
-//------------------------------------------------------------------
-
-bool CoreAPI::createIPCChannel(const std::string& name, APIIPCType type, APIIPCRole role, 
-                              const std::string& params) {
-    IPCType ipcType = m_impl->convertFromAPIIPCType(type);
-    IPCRole ipcRole = m_impl->convertFromAPIIPCRole(role);
-    
-    IPCManager& ipcManager = m_impl->m_core.getIPCManager();
-    
-    switch (ipcType) {
-        case IPCType::SHARED_MEMORY: {
-            size_t size = 1024; // Default size
-            if (!params.empty()) {
-                try {
-                    size = std::stoul(params);
-                } catch (...) {
-                    // Uso default se params non è un numero valido
-                }
-            }
-            return ipcManager.createSharedMemory(name, size);
-        }
-        
-        case IPCType::NAMED_PIPE: {
-            return ipcManager.createNamedPipe(name, ipcRole);
-        }
-        
-        case IPCType::SOCKET: {
-            std::string host = "";
-            int port = 0;
-            
-            if (!params.empty()) {
-                // Formato previsto: "host:port"
-                size_t pos = params.find(':');
-                if (pos != std::string::npos) {
-                    host = params.substr(0, pos);
-                    try {
-                        port = std::stoi(params.substr(pos + 1));
-                    } catch (...) {
-                        // Usa default se non valido
-                    }
-                }
-            }
-            
-            return ipcManager.createSocket(name, ipcRole, host, port);
-        }
-        
-        case IPCType::MESSAGE_QUEUE: {
-            return ipcManager.createMessageQueue(name);
-        }
-        
-        default:
-            return false;
+bool CoreAPI::initializeIPC() {
+    if (!m_impl->m_ipcManager) {
+        return false;
     }
+
+    ChannelInfo channelInfo;
+    channelInfo.name = "default";
+    channelInfo.type = IPCType::NAMED_PIPE;
+    channelInfo.isServer = true;
+    channelInfo.address = ".";
+    channelInfo.port = 0;
+
+    return m_impl->m_ipcManager->initialize(channelInfo);
+}
+
+void CoreAPI::closeIPC() {
+    if (m_impl->m_ipcManager) {
+        m_impl->m_ipcManager->close();
+    }
+}
+
+bool CoreAPI::isIPCChannelOpen(const std::string& channelName) const {
+    if (!m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->isChannelOpen(channelName);
+}
+
+bool CoreAPI::createIPCChannel(const std::string& name, APIIPCType type, APIIPCRole role, const std::string& params) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+
+    ChannelInfo channelInfo;
+    channelInfo.name = name;
+    channelInfo.type = convertFromAPIIPCType(type);
+    channelInfo.isServer = (role == APIIPCRole::SERVER);
+    channelInfo.address = params;
+    channelInfo.port = 0;
+
+    return m_impl->m_ipcManager->initialize(channelInfo);
 }
 
 bool CoreAPI::sendData(const std::string& channelName, const void* data, size_t dataSize) {
-    IPCManager& ipcManager = m_impl->m_core.getIPCManager();
-    
-    // Determiniamo automaticamente il tipo di canale
-    IPCChannelInfo* channelInfo = nullptr;
-    // Nota: Assumiamo che esista un metodo per ottenere le informazioni sul canale
-    // In un'implementazione reale, questo dovrebbe essere corretto per funzionare
-    
-    if (channelInfo) {
-        switch (channelInfo->type) {
-            case IPCType::SHARED_MEMORY: {
-                void* sharedMem = ipcManager.getSharedMemory(channelName);
-                if (sharedMem && dataSize <= channelInfo->size) {
-                    std::memcpy(sharedMem, data, dataSize);
-                    return true;
-                }
-                return false;
-            }
-            
-            case IPCType::NAMED_PIPE:
-                return ipcManager.writeToNamedPipe(channelName, data, dataSize);
-                
-            case IPCType::SOCKET:
-                return ipcManager.writeToSocket(channelName, data, dataSize);
-                
-            case IPCType::MESSAGE_QUEUE:
-                return ipcManager.sendMessage(channelName, data, dataSize);
-                
-            default:
-                return false;
-        }
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
     }
-    
-    // Se non troviamo info sul canale, proviamo tutti i metodi
-    if (ipcManager.writeToNamedPipe(channelName, data, dataSize)) {
-        return true;
-    }
-    
-    if (ipcManager.writeToSocket(channelName, data, dataSize)) {
-        return true;
-    }
-    
-    return ipcManager.sendMessage(channelName, data, dataSize);
+    return m_impl->m_ipcManager->sendData(channelName, data, dataSize);
 }
 
 bool CoreAPI::receiveData(const std::string& channelName, void* buffer, size_t bufferSize, size_t& bytesRead) {
-    IPCManager& ipcManager = m_impl->m_core.getIPCManager();
-    
-    // Simile a sendData, determiniamo il tipo di canale
-    // In un'implementazione reale, questo dovrebbe essere implementato correttamente
-    
-    // Prova tutti i metodi di ricezione
-    if (ipcManager.readFromNamedPipe(channelName, buffer, bufferSize, bytesRead)) {
-        return true;
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
     }
-    
-    if (ipcManager.readFromSocket(channelName, buffer, bufferSize, bytesRead)) {
-        return true;
-    }
-    
-    return ipcManager.receiveMessage(channelName, buffer, bufferSize, bytesRead);
+    return m_impl->m_ipcManager->receiveData(channelName, buffer, bufferSize, bytesRead);
 }
 
 int CoreAPI::registerMessageCallback(const std::string& channelName, APIMessageCallback callback) {
-    IPCManager& ipcManager = m_impl->m_core.getIPCManager();
-    
-    // Convertiamo la callback API nella callback interna
-    IPCMessageCallback internalCallback = [callback](const std::string& name, const void* data, size_t size) {
-        callback(name, data, size);
-    };
-    
-    return ipcManager.registerMessageCallback(channelName, internalCallback);
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return -1;
+    }
+    return m_impl->m_ipcManager->registerCallback(channelName, callback);
+}
+
+bool CoreAPI::unregisterMessageCallback(const std::string& channelName, int callbackId) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->unregisterCallback(channelName, callbackId);
 }
 
 bool CoreAPI::closeIPCChannel(const std::string& channelName) {
-    IPCManager& ipcManager = m_impl->m_core.getIPCManager();
-    
-    // Prova tutti i metodi di chiusura
-    if (ipcManager.releaseSharedMemory(channelName)) {
-        return true;
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
     }
-    
-    if (ipcManager.closeNamedPipe(channelName)) {
-        return true;
+    return m_impl->m_ipcManager->closeChannel(channelName);
+}
+
+bool CoreAPI::sendIPCData(const std::string& data) {
+    if (!m_impl->m_ipcManager) {
+        return false;
     }
-    
-    if (ipcManager.closeSocket(channelName)) {
-        return true;
+    return m_impl->m_ipcManager->sendData("default", data.c_str(), data.size());
+}
+
+std::string CoreAPI::receiveIPCData() {
+    if (!m_impl->m_ipcManager) {
+        return "";
     }
-    
-    return ipcManager.closeMessageQueue(channelName);
+    char buffer[4096];
+    size_t bytesRead;
+    if (m_impl->m_ipcManager->receiveData("default", buffer, sizeof(buffer), bytesRead)) {
+        return std::string(buffer, bytesRead);
+    }
+    return "";
+}
+
+int CoreAPI::registerIPCCallback(const std::string& messageName, std::function<void(const std::string&)> callback) {
+    if (!m_impl->m_ipcManager) {
+        return -1;
+    }
+    return m_impl->m_ipcManager->registerCallback(messageName, 
+        [callback](const std::string& channelName, const void* data, size_t size) {
+            if (data && size > 0) {
+                std::string message(static_cast<const char*>(data), size);
+                callback(message);
+            }
+        });
+}
+
+bool CoreAPI::unregisterIPCCallback(const std::string& messageName, int callbackId) {
+    if (!m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->unregisterCallback(messageName, callbackId);
 }
 
 //------------------------------------------------------------------
@@ -482,9 +411,9 @@ bool CoreAPI::initializePython(const std::string& pythonHome) {
     
     // Per ora, forniamo un'implementazione finta
     if (pythonHome.empty()) {
-        logInfo("Inizializzazione Python con Python Home di default");
+        log(APILogLevel::INFO, "Inizializzazione Python con Python Home di default");
     } else {
-        logInfo("Inizializzazione Python con Python Home: " + pythonHome);
+        log(APILogLevel::INFO, "Inizializzazione Python con Python Home: " + pythonHome);
     }
     
     return true;
@@ -493,7 +422,7 @@ bool CoreAPI::initializePython(const std::string& pythonHome) {
 bool CoreAPI::importPythonModule(const std::string& moduleName) {
     // Simile a initializePython, qui dovremmo avere accesso a PythonBridge
     
-    logInfo("Importazione modulo Python: " + moduleName);
+    log(APILogLevel::INFO, "Importazione modulo Python: " + moduleName);
     return true;
 }
 
@@ -506,14 +435,14 @@ bool CoreAPI::executePythonFunction(const std::string& moduleName, const std::st
         json jsonArgs = json::parse(args);
         
         // Chiamare la funzione Python (implementazione dimostrativa)
-        logInfo("Esecuzione funzione Python: " + moduleName + "." + funcName);
+        log(APILogLevel::INFO, "Esecuzione funzione Python: " + moduleName + "." + funcName);
         
         return true;
     } catch (const json::exception& e) {
-        logError("Errore nel parsing JSON degli argomenti: " + std::string(e.what()));
+        log(APILogLevel::ERROR, "Errore nel parsing JSON degli argomenti: " + std::string(e.what()));
         return false;
     } catch (...) {
-        logError("Errore sconosciuto nell'esecuzione della funzione Python");
+        log(APILogLevel::ERROR, "Errore sconosciuto nell'esecuzione della funzione Python");
         return false;
     }
 }
@@ -521,7 +450,7 @@ bool CoreAPI::executePythonFunction(const std::string& moduleName, const std::st
 bool CoreAPI::executePythonCode(const std::string& code) {
     // Eseguire il codice Python attraverso PythonBridge
     
-    logInfo("Esecuzione codice Python");
+    log(APILogLevel::INFO, "Esecuzione codice Python");
     return true;
 }
 
@@ -539,13 +468,13 @@ bool CoreAPI::initializeJava(const std::string& jvmPath, const std::string& clas
     
     // Per ora, forniamo un'implementazione finta
     if (jvmPath.empty()) {
-        logInfo("Inizializzazione JVM con percorso di default");
+        log(APILogLevel::INFO, "Inizializzazione JVM con percorso di default");
     } else {
-        logInfo("Inizializzazione JVM con percorso: " + jvmPath);
+        log(APILogLevel::INFO, "Inizializzazione JVM con percorso: " + jvmPath);
     }
     
     if (!classPath.empty()) {
-        logInfo("ClassPath specificato: " + classPath);
+        log(APILogLevel::INFO, "ClassPath specificato: " + classPath);
     }
     
     return true;
@@ -554,7 +483,7 @@ bool CoreAPI::initializeJava(const std::string& jvmPath, const std::string& clas
 bool CoreAPI::loadJavaClass(const std::string& className) {
     // Simile a initializeJava, qui dovremmo avere accesso a JavaBridge
     
-    logInfo("Caricamento classe Java: " + className);
+    log(APILogLevel::INFO, "Caricamento classe Java: " + className);
     return true;
 }
 
@@ -566,15 +495,15 @@ int CoreAPI::createJavaObject(const std::string& className, const std::string& a
         json jsonArgs = json::parse(args);
         
         // Creare l'oggetto Java (implementazione dimostrativa)
-        logInfo("Creazione oggetto Java: " + className);
+        log(APILogLevel::INFO, "Creazione oggetto Java: " + className);
         
         // Restituire un ID finto per l'oggetto
         return 1;
     } catch (const json::exception& e) {
-        logError("Errore nel parsing JSON degli argomenti: " + std::string(e.what()));
+        log(APILogLevel::ERROR, "Errore nel parsing JSON degli argomenti: " + std::string(e.what()));
         return -1;
     } catch (...) {
-        logError("Errore sconosciuto nella creazione dell'oggetto Java");
+        log(APILogLevel::ERROR, "Errore sconosciuto nella creazione dell'oggetto Java");
         return -1;
     }
 }
@@ -588,17 +517,17 @@ bool CoreAPI::callJavaMethod(int objectId, const std::string& methodName,
         json jsonArgs = json::parse(args);
         
         // Chiamare il metodo Java (implementazione dimostrativa)
-        logInfo("Chiamata metodo Java: " + methodName + " sull'oggetto " + std::to_string(objectId));
+        log(APILogLevel::INFO, "Chiamata metodo Java: " + methodName + " sull'oggetto " + std::to_string(objectId));
         
         // Imposta un risultato di prova
         result = R"({"status": "success", "result": null})";
         
         return true;
     } catch (const json::exception& e) {
-        logError("Errore nel parsing JSON degli argomenti: " + std::string(e.what()));
+        log(APILogLevel::ERROR, "Errore nel parsing JSON degli argomenti: " + std::string(e.what()));
         return false;
     } catch (...) {
-        logError("Errore sconosciuto nella chiamata del metodo Java");
+        log(APILogLevel::ERROR, "Errore sconosciuto nella chiamata del metodo Java");
         return false;
     }
 }
@@ -612,17 +541,133 @@ bool CoreAPI::callJavaStaticMethod(const std::string& className, const std::stri
         json jsonArgs = json::parse(args);
         
         // Chiamare il metodo statico Java (implementazione dimostrativa)
-        logInfo("Chiamata metodo statico Java: " + className + "." + methodName);
+        log(APILogLevel::INFO, "Chiamata metodo statico Java: " + className + "." + methodName);
         
         // Imposta un risultato di prova
         result = R"({"status": "success", "result": null})";
         
         return true;
     } catch (const json::exception& e) {
-        logError("Errore nel parsing JSON degli argomenti: " + std::string(e.what()));
+        log(APILogLevel::ERROR, "Errore nel parsing JSON degli argomenti: " + std::string(e.what()));
         return false;
     } catch (...) {
-        logError("Errore sconosciuto nella chiamata del metodo statico Java");
+        log(APILogLevel::ERROR, "Errore sconosciuto nella chiamata del metodo statico Java");
         return false;
     }
-} 
+}
+
+bool CoreAPI::createSharedMemory(const std::string& name, size_t size) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return (*m_impl->m_ipcManager).createSharedMemory(name, size);
+}
+
+bool CoreAPI::releaseSharedMemory(const std::string& name) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return (*m_impl->m_ipcManager).releaseSharedMemory(name);
+}
+
+bool CoreAPI::createNamedPipe(const std::string& name) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return (*m_impl->m_ipcManager).createNamedPipe(name);
+}
+
+bool CoreAPI::writeToNamedPipe(const std::string& name, const void* data, size_t size) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return (*m_impl->m_ipcManager).writeToNamedPipe(name, data, size);
+}
+
+bool CoreAPI::readFromNamedPipe(const std::string& name, void* buffer, size_t size) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return (*m_impl->m_ipcManager).readFromNamedPipe(name, buffer, size);
+}
+
+bool CoreAPI::closeNamedPipe(const std::string& name) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return (*m_impl->m_ipcManager).closeNamedPipe(name);
+}
+
+bool CoreAPI::createSocket(const std::string& address, int port) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->createSocket(address, port);
+}
+
+bool CoreAPI::writeToSocket(const std::string& address, const void* data, size_t size) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->writeToSocket(address, data, size);
+}
+
+bool CoreAPI::readFromSocket(const std::string& address, void* buffer, size_t size) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->readFromSocket(address, buffer, size);
+}
+
+bool CoreAPI::closeSocket(const std::string& address) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->closeSocket(address);
+}
+
+bool CoreAPI::createMessageQueue(const std::string& name) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->createMessageQueue(name);
+}
+
+bool CoreAPI::sendMessage(const std::string& name, const void* data, size_t size) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->sendMessage(name, data, size);
+}
+
+bool CoreAPI::receiveMessage(const std::string& name, void* buffer, size_t size) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->receiveMessage(name, buffer, size);
+}
+
+bool CoreAPI::closeMessageQueue(const std::string& name) {
+    if (!m_impl || !m_impl->m_ipcManager) {
+        return false;
+    }
+    return m_impl->m_ipcManager->closeMessageQueue(name);
+}
+
+int CoreAPI::registerResourceCallback(const std::string& resourceType, int thresholdPercent, APIResourceCallback callback) {
+    if (!m_impl) {
+        return -1;
+    }
+    
+    static int nextCallbackId = 0;
+    int id = ++nextCallbackId;
+    
+    if (m_impl->m_resourceCallbacks.find(resourceType) == m_impl->m_resourceCallbacks.end()) {
+        m_impl->m_resourceCallbacks[resourceType] = std::vector<std::pair<int, APIResourceCallback>>();
+    }
+    
+    m_impl->m_resourceCallbacks[resourceType].push_back(std::make_pair(id, callback));
+    return id;
+}
+
+} // namespace CoreNS 

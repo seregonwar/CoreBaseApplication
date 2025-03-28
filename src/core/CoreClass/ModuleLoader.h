@@ -1,14 +1,16 @@
 #pragma once
 
 #include <string>
-#include <unordered_map>
 #include <vector>
+#include <unordered_map>
 #include <memory>
-#include <functional>
+#include <mutex>
+#include "ConfigManager.h"
+
+namespace CoreNS {
 
 // Forward declarations
 class ErrorHandler;
-class ConfigManager;
 
 /**
  * @brief Enum che definisce i tipi di moduli supportati
@@ -16,8 +18,9 @@ class ConfigManager;
 enum class ModuleType {
     CPP,
     PYTHON,
-    JAVA,
-    UNKNOWN
+    LUA,
+    JAVASCRIPT,
+    JAVA
 };
 
 /**
@@ -26,13 +29,18 @@ enum class ModuleType {
 struct ModuleInfo {
     std::string name;
     std::string version;
-    std::string author;
     std::string description;
+    std::string author;
     ModuleType type;
     std::vector<std::string> dependencies;
     bool isLoaded;
     void* handle;
 };
+
+// Definizioni dei tipi di funzione per i simboli esportati
+using GetModuleInfoFunc = ModuleInfo(*)();
+using InitializeModuleFunc = bool(*)();
+using CleanupModuleFunc = void(*)();
 
 /**
  * @brief Classe per il caricamento dinamico dei moduli
@@ -41,10 +49,14 @@ class ModuleLoader {
 public:
     /**
      * @brief Costruttore del ModuleLoader
-     * @param errorHandler Riferimento all'ErrorHandler
-     * @param configManager Riferimento al ConfigManager
      */
-    ModuleLoader(ErrorHandler& errorHandler, ConfigManager& configManager);
+    ModuleLoader();
+    
+    /**
+     * @brief Costruttore del ModuleLoader con ErrorHandler esistente
+     * @param errorHandler Riferimento all'ErrorHandler da utilizzare
+     */
+    ModuleLoader(ErrorHandler& errorHandler);
     
     /**
      * @brief Distruttore del ModuleLoader
@@ -58,106 +70,68 @@ public:
     bool initialize();
     
     /**
+     * @brief Chiude il ModuleLoader
+     */
+    void shutdown();
+    
+    /**
      * @brief Carica un modulo da un percorso specificato
      * @param modulePath Percorso del modulo da caricare
      * @return true se il caricamento è avvenuto con successo, false altrimenti
      */
-    bool load(const std::string& modulePath);
+    bool loadModule(const std::string& modulePath);
     
     /**
      * @brief Scarica un modulo
-     * @param moduleName Nome del modulo da scaricare
+     * @param modulePath Percorso del modulo da scaricare
      * @return true se lo scaricamento è avvenuto con successo, false altrimenti
      */
-    bool unload(const std::string& moduleName);
+    bool unloadModule(const std::string& modulePath);
     
     /**
      * @brief Verifica se un modulo è caricato
-     * @param moduleName Nome del modulo
+     * @param modulePath Percorso del modulo
      * @return true se il modulo è caricato, false altrimenti
      */
-    bool isLoaded(const std::string& moduleName) const;
+    bool isModuleLoaded(const std::string& modulePath) const;
     
     /**
      * @brief Ottiene le informazioni di un modulo
-     * @param moduleName Nome del modulo
+     * @param modulePath Percorso del modulo
      * @return Informazioni sul modulo, nullptr se il modulo non esiste
      */
-    const ModuleInfo* getModuleInfo(const std::string& moduleName) const;
+    const ModuleInfo* getModuleInfo(const std::string& modulePath) const;
     
     /**
      * @brief Ottiene tutti i moduli caricati
-     * @return Vector contenente i nomi dei moduli caricati
+     * @return Vector contenente i percorsi dei moduli caricati
      */
     std::vector<std::string> getLoadedModules() const;
     
     /**
-     * @brief Chiama una funzione esportata da un modulo C++
-     * @param moduleName Nome del modulo
-     * @param functionName Nome della funzione
-     * @param args Argomenti da passare alla funzione
-     * @return true se la chiamata è avvenuta con successo, false altrimenti
+     * @brief Ricarica tutti i moduli
+     * @return true se il ricaricamento è avvenuto con successo, false altrimenti
      */
-    template<typename... Args>
-    bool callFunction(const std::string& moduleName, const std::string& functionName, Args... args);
+    bool reloadAll();
     
     /**
-     * @brief Esegue un metodo in un modulo Python
-     * @param moduleName Nome del modulo Python
-     * @param functionName Nome della funzione
-     * @param args Argomenti da passare alla funzione
-     * @return true se la chiamata è avvenuta con successo, false altrimenti
+     * @brief Ottiene un simbolo esportato da un modulo
+     * @param modulePath Percorso del modulo
+     * @param symbolName Nome del simbolo da ottenere
+     * @return Puntatore al simbolo esportato, nullptr se il simbolo non esiste
      */
-    template<typename... Args>
-    bool executePythonMethod(const std::string& moduleName, const std::string& functionName, Args... args);
-    
-    /**
-     * @brief Esegue un metodo in un modulo Java
-     * @param className Nome della classe Java
-     * @param methodName Nome del metodo
-     * @param args Argomenti da passare al metodo
-     * @return true se la chiamata è avvenuta con successo, false altrimenti
-     */
-    template<typename... Args>
-    bool executeJavaMethod(const std::string& className, const std::string& methodName, Args... args);
-    
+    void* getSymbol(const std::string& modulePath, const std::string& symbolName) const;
+
 private:
+    bool validateModule(const std::string& modulePath) const;
+    bool checkDependencies(const ModuleInfo& moduleInfo) const;
+
+    std::unordered_map<std::string, std::pair<void*, ModuleInfo>> m_loadedModules;
+    std::shared_ptr<ConfigManager> m_configManager;
     ErrorHandler& m_errorHandler;
-    ConfigManager& m_configManager;
-    std::unordered_map<std::string, ModuleInfo> m_modules;
-    
-    /**
-     * @brief Determina il tipo di modulo in base all'estensione del file
-     * @param modulePath Percorso del modulo
-     * @return Tipo del modulo
-     */
-    ModuleType getModuleType(const std::string& modulePath) const;
-    
-    /**
-     * @brief Carica un modulo C++
-     * @param modulePath Percorso del modulo
-     * @return true se il caricamento è avvenuto con successo, false altrimenti
-     */
-    bool loadCppModule(const std::string& modulePath);
-    
-    /**
-     * @brief Carica un modulo Python
-     * @param modulePath Percorso del modulo
-     * @return true se il caricamento è avvenuto con successo, false altrimenti
-     */
-    bool loadPythonModule(const std::string& modulePath);
-    
-    /**
-     * @brief Carica un modulo Java
-     * @param modulePath Percorso del modulo
-     * @return true se il caricamento è avvenuto con successo, false altrimenti
-     */
-    bool loadJavaModule(const std::string& modulePath);
-    
-    /**
-     * @brief Verifica le dipendenze di un modulo
-     * @param dependencies Lista delle dipendenze del modulo
-     * @return true se tutte le dipendenze sono soddisfatte, false altrimenti
-     */
-    bool checkDependencies(const std::vector<std::string>& dependencies) const;
+    mutable std::mutex m_mutex;
+    bool m_initialized{false};
+    bool m_ownsErrorHandler{false};
 };
+
+} // namespace CoreNS

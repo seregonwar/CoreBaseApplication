@@ -4,6 +4,17 @@
 #include <vector>
 #include <functional>
 #include <memory>
+// Forward declaration delle classi necessarie
+namespace CoreNS {
+    class ErrorHandler;
+}
+
+#include "CoreClass/ResourceManager.h"
+#include "Core.h"
+#include "CoreClass/ModuleInfo.h"
+#include "CoreClass/SystemResources.h"
+
+namespace CoreNS {
 
 /**
  * @brief Livelli di log supportati dall'API
@@ -31,8 +42,7 @@ enum class APIModuleType {
 enum class APIIPCType {
     SHARED_MEMORY,
     NAMED_PIPE,
-    SOCKET,
-    MESSAGE_QUEUE
+    SOCKET
 };
 
 /**
@@ -51,19 +61,19 @@ using APIMessageCallback = std::function<void(const std::string& channelName, co
 /**
  * @brief Callback per le soglie di risorse
  */
-using APIResourceCallback = std::function<void(int currentUsage)>;
+using APIResourceCallback = std::function<void(const std::string&, int)>;
 
 /**
  * @brief Struct che contiene informazioni sulle risorse di sistema
  */
 struct APISystemResources {
-    int cpuUsagePercent;
+    double cpuUsagePercent;
     uint64_t availableMemoryBytes;
     uint64_t totalMemoryBytes;
     uint64_t availableDiskBytes;
     uint64_t totalDiskBytes;
-    int networkUsagePercent;
-    int gpuUsagePercent;
+    double networkUsagePercent;
+    double gpuUsagePercent;
 };
 
 /**
@@ -72,15 +82,17 @@ struct APISystemResources {
 struct APIModuleInfo {
     std::string name;
     std::string version;
-    std::string author;
     std::string description;
-    APIModuleType type;
+    std::string author;
+    std::string type;
     std::vector<std::string> dependencies;
     bool isLoaded;
 };
 
 // Forward declaration della classe nascosta che implementa l'API
 class CoreAPIImpl;
+
+class Core;
 
 /**
  * @brief API semplificata per interagire con il Core
@@ -89,9 +101,8 @@ class CoreAPI {
 public:
     /**
      * @brief Costruttore dell'API
-     * @param configPath Percorso del file di configurazione
      */
-    CoreAPI(const std::string& configPath = "config.json");
+    CoreAPI();
     
     /**
      * @brief Distruttore dell'API
@@ -104,92 +115,15 @@ public:
     
     /**
      * @brief Inizializza il Core e tutti i suoi componenti
+     * @param configPath Percorso del file di configurazione
      * @return true se l'inizializzazione è avvenuta con successo, false altrimenti
      */
-    bool initialize();
+    bool initialize(const std::string& configPath);
     
     /**
      * @brief Arresta il Core e libera le risorse
      */
     void shutdown();
-    
-    //----------------------------------------------
-    // Gestione configurazioni
-    //----------------------------------------------
-    
-    /**
-     * @brief Carica una configurazione da file
-     * @param filePath Percorso del file di configurazione
-     * @return true se il caricamento è avvenuto con successo, false altrimenti
-     */
-    bool loadConfig(const std::string& filePath);
-    
-    /**
-     * @brief Salva la configurazione corrente su file
-     * @param filePath Percorso del file (se vuoto, usa l'ultimo file caricato)
-     * @return true se il salvataggio è avvenuto con successo, false altrimenti
-     */
-    bool saveConfig(const std::string& filePath = "");
-    
-    /**
-     * @brief Ottiene un valore di configurazione come stringa
-     * @param key Chiave di configurazione (formato: "sezione.chiave")
-     * @param defaultValue Valore di default se la chiave non esiste
-     * @return Valore della configurazione
-     */
-    std::string getConfigString(const std::string& key, const std::string& defaultValue = "");
-    
-    /**
-     * @brief Ottiene un valore di configurazione come intero
-     * @param key Chiave di configurazione (formato: "sezione.chiave")
-     * @param defaultValue Valore di default se la chiave non esiste
-     * @return Valore della configurazione
-     */
-    int getConfigInt(const std::string& key, int defaultValue = 0);
-    
-    /**
-     * @brief Ottiene un valore di configurazione come double
-     * @param key Chiave di configurazione (formato: "sezione.chiave")
-     * @param defaultValue Valore di default se la chiave non esiste
-     * @return Valore della configurazione
-     */
-    double getConfigDouble(const std::string& key, double defaultValue = 0.0);
-    
-    /**
-     * @brief Ottiene un valore di configurazione come boolean
-     * @param key Chiave di configurazione (formato: "sezione.chiave")
-     * @param defaultValue Valore di default se la chiave non esiste
-     * @return Valore della configurazione
-     */
-    bool getConfigBool(const std::string& key, bool defaultValue = false);
-    
-    /**
-     * @brief Imposta un valore di configurazione
-     * @param key Chiave di configurazione (formato: "sezione.chiave")
-     * @param value Valore da impostare
-     */
-    void setConfig(const std::string& key, const std::string& value);
-    
-    /**
-     * @brief Imposta un valore di configurazione
-     * @param key Chiave di configurazione (formato: "sezione.chiave")
-     * @param value Valore da impostare
-     */
-    void setConfig(const std::string& key, int value);
-    
-    /**
-     * @brief Imposta un valore di configurazione
-     * @param key Chiave di configurazione (formato: "sezione.chiave")
-     * @param value Valore da impostare
-     */
-    void setConfig(const std::string& key, double value);
-    
-    /**
-     * @brief Imposta un valore di configurazione
-     * @param key Chiave di configurazione (formato: "sezione.chiave")
-     * @param value Valore da impostare
-     */
-    void setConfig(const std::string& key, bool value);
     
     //----------------------------------------------
     // Gestione moduli
@@ -204,111 +138,111 @@ public:
     
     /**
      * @brief Scarica un modulo
-     * @param moduleName Nome del modulo da scaricare
+     * @param modulePath Percorso del modulo da scaricare
      * @return true se lo scaricamento è avvenuto con successo, false altrimenti
      */
-    bool unloadModule(const std::string& moduleName);
+    bool unloadModule(const std::string& modulePath);
     
     /**
      * @brief Verifica se un modulo è caricato
-     * @param moduleName Nome del modulo
+     * @param modulePath Percorso del modulo
      * @return true se il modulo è caricato, false altrimenti
      */
-    bool isModuleLoaded(const std::string& moduleName) const;
+    bool isModuleLoaded(const std::string& modulePath) const;
     
     /**
      * @brief Ottiene le informazioni di un modulo
-     * @param moduleName Nome del modulo
+     * @param modulePath Percorso del modulo
      * @return Informazioni sul modulo
      */
-    APIModuleInfo getModuleInfo(const std::string& moduleName) const;
+    APIModuleInfo getModuleInfo(const std::string& modulePath) const;
     
     /**
      * @brief Ottiene tutti i moduli caricati
-     * @return Vector contenente i nomi dei moduli caricati
+     * @return Vector contenente i percorsi dei moduli caricati
      */
     std::vector<std::string> getLoadedModules() const;
     
     //----------------------------------------------
-    // Logging e gestione errori
+    // Configuration Management
     //----------------------------------------------
     
     /**
-     * @brief Registra un messaggio di log
-     * @param level Livello del log
-     * @param message Messaggio da registrare
-     * @param sourceFile Nome del file sorgente (opzionale)
-     * @param lineNumber Numero di riga nel file sorgente (opzionale)
-     * @param functionName Nome della funzione (opzionale)
+     * @brief Carica la configurazione da un file
+     * @param filePath Percorso del file di configurazione
+     * @return true se il caricamento è avvenuto con successo, false altrimenti
      */
-    void log(APILogLevel level, const std::string& message, 
-            const std::string& sourceFile = "", int lineNumber = 0, 
-            const std::string& functionName = "");
+    bool loadConfig(const std::string& filePath);
     
     /**
-     * @brief Registra un errore
-     * @param errorMessage Messaggio di errore
+     * @brief Salva la configurazione su un file
+     * @param filePath Percorso del file di configurazione
+     * @return true se il salvataggio è avvenuto con successo, false altrimenti
      */
-    void logError(const std::string& errorMessage);
+    bool saveConfig(const std::string& filePath);
     
     /**
-     * @brief Registra un avviso
-     * @param warningMessage Messaggio di avviso
+     * @brief Ottiene un valore di configurazione come stringa
+     * @param key Chiave del valore
+     * @param defaultValue Valore di default se la chiave non esiste
+     * @return Valore di configurazione
      */
-    void logWarning(const std::string& warningMessage);
+    std::string getConfigString(const std::string& key, const std::string& defaultValue = "");
     
     /**
-     * @brief Registra un messaggio informativo
-     * @param infoMessage Messaggio informativo
+     * @brief Ottiene un valore di configurazione come intero
+     * @param key Chiave del valore
+     * @param defaultValue Valore di default se la chiave non esiste
+     * @return Valore di configurazione
      */
-    void logInfo(const std::string& infoMessage);
+    int getConfigInt(const std::string& key, int defaultValue = 0);
     
     /**
-     * @brief Registra un messaggio di debug
-     * @param debugMessage Messaggio di debug
+     * @brief Ottiene un valore di configurazione come double
+     * @param key Chiave del valore
+     * @param defaultValue Valore di default se la chiave non esiste
+     * @return Valore di configurazione
      */
-    void logDebug(const std::string& debugMessage);
+    double getConfigDouble(const std::string& key, double defaultValue = 0.0);
     
     /**
-     * @brief Imposta il livello minimo di log da registrare
-     * @param level Livello minimo di log
+     * @brief Ottiene un valore di configurazione come booleano
+     * @param key Chiave del valore
+     * @param defaultValue Valore di default se la chiave non esiste
+     * @return Valore di configurazione
      */
-    void setLogLevel(APILogLevel level);
+    bool getConfigBool(const std::string& key, bool defaultValue = false);
+    
+    /**
+     * @brief Imposta un valore di configurazione come stringa
+     * @param key Chiave del valore
+     * @param value Valore da impostare
+     */
+    void setConfig(const std::string& key, const std::string& value);
+    
+    /**
+     * @brief Imposta un valore di configurazione come intero
+     * @param key Chiave del valore
+     * @param value Valore da impostare
+     */
+    void setConfig(const std::string& key, int value);
+    
+    /**
+     * @brief Imposta un valore di configurazione come double
+     * @param key Chiave del valore
+     * @param value Valore da impostare
+     */
+    void setConfig(const std::string& key, double value);
+    
+    /**
+     * @brief Imposta un valore di configurazione come booleano
+     * @param key Chiave del valore
+     * @param value Valore da impostare
+     */
+    void setConfig(const std::string& key, bool value);
     
     //----------------------------------------------
-    // Gestione risorse
-    //----------------------------------------------
-    
-    /**
-     * @brief Ottiene le informazioni sulle risorse di sistema
-     * @return Struct contenente informazioni sulle risorse
-     */
-    APISystemResources getSystemResources() const;
-    
-    /**
-     * @brief Ottiene la quantità di memoria disponibile
-     * @return Memoria disponibile in bytes
-     */
-    uint64_t getAvailableMemory() const;
-    
-    /**
-     * @brief Ottiene l'utilizzo della CPU
-     * @return Percentuale di utilizzo della CPU (0-100)
-     */
-    int getCpuUsage() const;
-    
-    /**
-     * @brief Registra una callback da eseguire quando l'utilizzo di una risorsa supera una soglia
-     * @param resourceType Tipo di risorsa da monitorare (cpu, memory, disk, network, gpu)
-     * @param thresholdPercent Soglia percentuale (0-100)
-     * @param callback Funzione da eseguire quando la soglia viene superata
-     * @return ID della callback registrata
-     */
-    int registerResourceCallback(const std::string& resourceType, int thresholdPercent, 
-                               APIResourceCallback callback);
-    
-    //----------------------------------------------
-    // Comunicazione IPC
+    // Configuration Management
     //----------------------------------------------
     
     /**
@@ -440,7 +374,345 @@ public:
     bool callJavaStaticMethod(const std::string& className, const std::string& methodName, 
                             const std::string& args, std::string& result);
     
+    //----------------------------------------------
+    // Logging e gestione errori
+    //----------------------------------------------
+    
+    /**
+     * @brief Registra un messaggio di log
+     * @param level Livello del log
+     * @param message Messaggio da registrare
+     * @param file Nome del file sorgente (opzionale)
+     * @param line Numero di riga nel file sorgente (opzionale)
+     * @param function Nome della funzione (opzionale)
+     */
+    void log(APILogLevel level, const std::string& message, const std::string& source = "", int line = 0);
+    
+    /**
+     * @brief Registra un errore
+     * @param errorMessage Messaggio di errore
+     */
+    void logError(const std::string& errorMessage);
+    
+    /**
+     * @brief Registra un avviso
+     * @param warningMessage Messaggio di avviso
+     */
+    void logWarning(const std::string& warningMessage);
+    
+    /**
+     * @brief Registra un messaggio informativo
+     * @param infoMessage Messaggio informativo
+     */
+    void logInfo(const std::string& infoMessage);
+    
+    /**
+     * @brief Registra un messaggio di debug
+     * @param debugMessage Messaggio di debug
+     */
+    void logDebug(const std::string& debugMessage);
+    
+    /**
+     * @brief Imposta il livello minimo di log da registrare
+     * @param level Livello minimo di log
+     */
+    void setLogLevel(APILogLevel level);
+    
+    //----------------------------------------------
+    // Shared Memory
+    //----------------------------------------------
+    
+    /**
+     * @brief Crea una memoria condivisa
+     * @param name Nome della memoria condivisa
+     * @param size Dimensione della memoria condivisa
+     * @return true se la creazione è avvenuta con successo, false altrimenti
+     */
+    bool createSharedMemory(const std::string& name, size_t size);
+    
+    /**
+     * @brief Rilascia una memoria condivisa
+     * @param name Nome della memoria condivisa
+     * @return true se la rilascio è avvenuto con successo, false altrimenti
+     */
+    bool releaseSharedMemory(const std::string& name);
+    
+    //----------------------------------------------
+    // Named Pipes
+    //----------------------------------------------
+    
+    /**
+     * @brief Crea una named pipe
+     * @param name Nome della named pipe
+     * @return true se la creazione è avvenuta con successo, false altrimenti
+     */
+    bool createNamedPipe(const std::string& name);
+    
+    /**
+     * @brief Scrive dati su una named pipe
+     * @param name Nome della named pipe
+     * @param data Dati da scrivere
+     * @param size Dimensione dei dati
+     * @return true se la scrittura è avvenuta con successo, false altrimenti
+     */
+    bool writeToNamedPipe(const std::string& name, const void* data, size_t size);
+    
+    /**
+     * @brief Legge dati da una named pipe
+     * @param name Nome della named pipe
+     * @param buffer Buffer in cui leggere i dati
+     * @param size Dimensione del buffer
+     * @return true se la lettura è avvenuta con successo, false altrimenti
+     */
+    bool readFromNamedPipe(const std::string& name, void* buffer, size_t size);
+    
+    /**
+     * @brief Chiude una named pipe
+     * @param name Nome della named pipe
+     * @return true se la chiusura è avvenuta con successo, false altrimenti
+     */
+    bool closeNamedPipe(const std::string& name);
+    
+    //----------------------------------------------
+    // Sockets
+    //----------------------------------------------
+    
+    /**
+     * @brief Crea una socket
+     * @param address Indirizzo della socket
+     * @param port Porta della socket
+     * @return true se la creazione è avvenuta con successo, false altrimenti
+     */
+    bool createSocket(const std::string& address, int port);
+    
+    /**
+     * @brief Scrive dati su una socket
+     * @param address Indirizzo della socket
+     * @param data Dati da scrivere
+     * @param size Dimensione dei dati
+     * @return true se la scrittura è avvenuta con successo, false altrimenti
+     */
+    bool writeToSocket(const std::string& address, const void* data, size_t size);
+    
+    /**
+     * @brief Legge dati da una socket
+     * @param address Indirizzo della socket
+     * @param buffer Buffer in cui leggere i dati
+     * @param size Dimensione del buffer
+     * @return true se la lettura è avvenuta con successo, false altrimenti
+     */
+    bool readFromSocket(const std::string& address, void* buffer, size_t size);
+    
+    /**
+     * @brief Chiude una socket
+     * @param address Indirizzo della socket
+     * @return true se la chiusura è avvenuta con successo, false altrimenti
+     */
+    bool closeSocket(const std::string& address);
+    
+    //----------------------------------------------
+    // Message Queue
+    //----------------------------------------------
+    
+    /**
+     * @brief Crea una coda di messaggi
+     * @param name Nome della coda di messaggi
+     * @return true se la creazione è avvenuta con successo, false altrimenti
+     */
+    bool createMessageQueue(const std::string& name);
+    
+    /**
+     * @brief Invia un messaggio a una coda di messaggi
+     * @param name Nome della coda di messaggi
+     * @param data Dati da inviare
+     * @param size Dimensione dei dati
+     * @return true se l'invio è avvenuto con successo, false altrimenti
+     */
+    bool sendMessage(const std::string& name, const void* data, size_t size);
+    
+    /**
+     * @brief Riceve un messaggio da una coda di messaggi
+     * @param name Nome della coda di messaggi
+     * @param buffer Buffer in cui leggere il messaggio
+     * @param size Dimensione del buffer
+     * @return true se la ricezione è avvenuta con successo, false altrimenti
+     */
+    bool receiveMessage(const std::string& name, void* buffer, size_t size);
+    
+    /**
+     * @brief Chiude una coda di messaggi
+     * @param name Nome della coda di messaggi
+     * @return true se la chiusura è avvenuta con successo, false altrimenti
+     */
+    bool closeMessageQueue(const std::string& name);
+    
+    //----------------------------------------------
+    // Message Callbacks
+    //----------------------------------------------
+    
+    /**
+     * @brief Unregistra una callback per i messaggi ricevuti
+     * @param channelName Nome del canale IPC
+     * @param callbackId ID della callback da unregistrar
+     * @return true se la unregistrazione è avvenuta con successo, false altrimenti
+     */
+    bool unregisterMessageCallback(const std::string& channelName, int callbackId);
+    
+    //----------------------------------------------
+    // Logging
+    //----------------------------------------------
+    
+    /**
+     * @brief Ottiene il buffer di log corrente
+     * @return Vector contenente i messaggi di log
+     */
+    std::vector<std::string> getLogBuffer() const;
+    
+    /**
+     * @brief Pulisce il buffer di log
+     */
+    void clearLogBuffer();
+    
+    //----------------------------------------------
+    // Static logging methods
+    //----------------------------------------------
+    
+    /**
+     * @brief Registra un messaggio di debug
+     * @param message Messaggio di debug
+     * @param file Nome del file sorgente (opzionale)
+     * @param line Numero di riga nel file sorgente (opzionale)
+     * @param function Nome della funzione (opzionale)
+     */
+    void debug(const std::string& message, const char* file = nullptr, int line = 0, const char* function = nullptr);
+    
+    /**
+     * @brief Registra un messaggio informativo
+     * @param message Messaggio informativo
+     * @param file Nome del file sorgente (opzionale)
+     * @param line Numero di riga nel file sorgente (opzionale)
+     * @param function Nome della funzione (opzionale)
+     */
+    void info(const std::string& message, const char* file = nullptr, int line = 0, const char* function = nullptr);
+    
+    /**
+     * @brief Registra un messaggio di avviso
+     * @param message Messaggio di avviso
+     * @param file Nome del file sorgente (opzionale)
+     * @param line Numero di riga nel file sorgente (opzionale)
+     * @param function Nome della funzione (opzionale)
+     */
+    void warning(const std::string& message, const char* file = nullptr, int line = 0, const char* function = nullptr);
+    
+    /**
+     * @brief Registra un messaggio di errore
+     * @param message Messaggio di errore
+     * @param file Nome del file sorgente (opzionale)
+     * @param line Numero di riga nel file sorgente (opzionale)
+     * @param function Nome della funzione (opzionale)
+     */
+    void error(const std::string& message, const char* file = nullptr, int line = 0, const char* function = nullptr);
+    
+    /**
+     * @brief Registra un messaggio di errore fatale
+     * @param message Messaggio di errore fatale
+     * @param file Nome del file sorgente (opzionale)
+     * @param line Numero di riga nel file sorgente (opzionale)
+     * @param function Nome della funzione (opzionale)
+     */
+    void fatal(const std::string& message, const char* file = nullptr, int line = 0, const char* function = nullptr);
+    
+    /**
+     * @brief Ottiene il livello minimo di log da registrare
+     * @return Livello minimo di log
+     */
+    APILogLevel getLogLevel() const;
+
+    //----------------------------------------------
+    // Gestione risorse
+    //----------------------------------------------
+    
+    /**
+     * @brief Ottiene le informazioni sulle risorse di sistema
+     * @return Struct contenente le informazioni sulle risorse
+     */
+    APISystemResources getSystemResources() const;
+    
+    /**
+     * @brief Ottiene la memoria disponibile in bytes
+     * @return Quantità di memoria disponibile
+     */
+    uint64_t getAvailableMemory() const;
+    
+    /**
+     * @brief Ottiene l'utilizzo della CPU in percentuale
+     * @return Percentuale di utilizzo della CPU
+     */
+    double getCpuUsage() const;
+    
+    /**
+     * @brief Ottiene l'utilizzo della rete in percentuale
+     * @return Percentuale di utilizzo della rete
+     */
+    double getNetworkUsage() const;
+    
+    /**
+     * @brief Ottiene l'utilizzo della GPU in percentuale
+     * @return Percentuale di utilizzo della GPU
+     */
+    double getGpuUsage() const;
+    
+    /**
+     * @brief Ottiene la memoria disponibile su disco in bytes
+     * @return Quantità di memoria disponibile su disco
+     */
+    uint64_t getAvailableDisk() const;
+    
+    /**
+     * @brief Registra una callback per il monitoraggio delle risorse
+     * @param resourceType Tipo di risorsa da monitorare
+     * @param thresholdPercent Soglia percentuale per la notifica
+     * @param callback Funzione di callback da chiamare
+     * @return ID della callback registrata, -1 in caso di errore
+     */
+    int registerResourceCallback(const std::string& resourceType, int thresholdPercent, APIResourceCallback callback);
+    
+    /**
+     * @brief Ottiene l'utilizzo della memoria in percentuale
+     * @return Percentuale di utilizzo della memoria
+     */
+    double getMemoryUsage() const;
+    
+    /**
+     * @brief Ottiene l'utilizzo del disco in percentuale
+     * @return Percentuale di utilizzo del disco
+     */
+    double getDiskUsage() const;
+    
+    // IPC Methods
+    bool initializeIPC();
+    void closeIPC();
+    bool isIPCChannelOpen(const std::string& channelName) const;
+    bool sendIPCData(const std::string& data);
+    std::string receiveIPCData();
+    int registerIPCCallback(const std::string& messageName, std::function<void(const std::string&)> callback);
+    bool unregisterIPCCallback(const std::string& messageName, int callbackId);
+
 private:
-    // Implementazione nascosta (Pimpl idiom)
+    class CoreAPIImpl {
+    public:
+        CoreAPIImpl();
+        ~CoreAPIImpl();
+
+        std::shared_ptr<Core> m_core;
+        std::shared_ptr<ConfigManager> m_configManager;
+        std::shared_ptr<ResourceManager> m_resourceManager;
+        std::shared_ptr<ModuleManager> m_moduleManager;
+        std::shared_ptr<ErrorHandler> m_errorHandler;
+        std::shared_ptr<IPCManager> m_ipcManager;
+        std::unordered_map<std::string, std::vector<std::pair<int, APIResourceCallback>>> m_resourceCallbacks;
+    };
     std::unique_ptr<CoreAPIImpl> m_impl;
-}; 
+};
+
+} // namespace CoreNS 

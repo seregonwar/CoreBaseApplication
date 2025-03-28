@@ -9,23 +9,20 @@
 #include <thread>
 #include <chrono>
 #include <functional>
+#include <sstream>
 
 namespace Core {
 namespace AdvancedLogging {
 
 /**
- * @brief Classe che integra il sistema di logging avanzato con l'ErrorHandler del Core.
- * 
- * Questa classe funge da adattatore tra il sistema di logging avanzato e
- * l'ErrorHandler esistente, permettendo di usare il nuovo sistema mantenendo
- * la compatibilità con il codice esistente.
+ * @brief Classe che integra il logger avanzato con l'ErrorHandler del Core.
  */
 class LoggingIntegration {
 public:
     /**
-     * @brief Ottiene l'istanza singleton dell'adattatore.
+     * @brief Ottiene l'istanza della classe (singleton).
      * 
-     * @return Riferimento all'istanza singleton
+     * @return Riferimento all'istanza
      */
     static LoggingIntegration& getInstance() {
         static LoggingIntegration instance;
@@ -45,12 +42,12 @@ public:
         m_errorHandler = errorHandler;
         
         // Registriamo un callback nell'ErrorHandler che inoltri i messaggi al nostro Logger
-        m_errorHandler->registerLogCallback([this](const std::string& message, LogLevel level) {
+        m_errorHandler->registerLogCallback(LogLevel::INFO, [this](const LogMessage& logMsg) {
             // Convertiamo il LogLevel dell'ErrorHandler nel nostro LogLevel
-            AdvancedLogging::LogLevel advLevel = convertLogLevel(level);
+            AdvancedLogging::LogLevel advLevel = convertLogLevel(logMsg.level);
             
             // Invio il messaggio al logger avanzato
-            Logger::getInstance().log(advLevel, message, "Core");
+            Logger::getInstance().log(advLevel, logMsg.message, "Core");
         });
     }
     
@@ -116,7 +113,7 @@ public:
         
         // Se abbiamo un ErrorHandler configurato, inoltra anche a quello
         if (m_errorHandler) {
-            m_errorHandler->logMessage(message, convertLogLevel(level));
+            m_errorHandler->log(convertLogLevel(level), message);
         }
     }
     
@@ -237,8 +234,12 @@ private:
     
     // Distruttore privato
     ~LoggingIntegration() {
-        // Fermiamo il thread delle metriche, se esiste
-        enableMetricsLogging(false);
+        if (m_metricsLoggingEnabled) {
+            m_metricsLoggingEnabled = false;
+            if (m_metricsThread.joinable()) {
+                m_metricsThread.join();
+            }
+        }
     }
     
     // Disabilita copia e assegnazione
@@ -246,33 +247,9 @@ private:
     LoggingIntegration& operator=(const LoggingIntegration&) = delete;
     
     /**
-     * @brief Converte un LogLevel del Core in un LogLevel del sistema avanzato.
-     * 
-     * @param level LogLevel del Core
-     * @return LogLevel del sistema avanzato
-     */
-    AdvancedLogging::LogLevel convertLogLevel(LogLevel level) const {
-        switch (level) {
-            case LogLevel::DEBUG:
-                return AdvancedLogging::LogLevel::DEBUG;
-            case LogLevel::INFO:
-                return AdvancedLogging::LogLevel::INFO;
-            case LogLevel::WARNING:
-                return AdvancedLogging::LogLevel::WARNING;
-            case LogLevel::ERROR:
-                return AdvancedLogging::LogLevel::ERROR;
-            case LogLevel::FATAL:
-                return AdvancedLogging::LogLevel::FATAL;
-            default:
-                return AdvancedLogging::LogLevel::INFO;
-        }
-    }
-    
-    /**
-     * @brief Converte un LogLevel del sistema avanzato in un LogLevel del Core.
-     * 
-     * @param level LogLevel del sistema avanzato
-     * @return LogLevel del Core
+     * @brief Converte un LogLevel di AdvancedLogging in un LogLevel standard.
+     * @param level LogLevel di AdvancedLogging
+     * @return LogLevel standard
      */
     LogLevel convertLogLevel(AdvancedLogging::LogLevel level) const {
         switch (level) {
@@ -296,36 +273,41 @@ private:
     }
     
     /**
+     * @brief Converte un LogLevel standard in un LogLevel di AdvancedLogging.
+     * @param level LogLevel standard
+     * @return LogLevel di AdvancedLogging
+     */
+    AdvancedLogging::LogLevel convertLogLevel(LogLevel level) const {
+        switch (level) {
+            case LogLevel::DEBUG:
+                return AdvancedLogging::LogLevel::DEBUG;
+            case LogLevel::INFO:
+                return AdvancedLogging::LogLevel::INFO;
+            case LogLevel::WARNING:
+                return AdvancedLogging::LogLevel::WARNING;
+            case LogLevel::ERROR:
+                return AdvancedLogging::LogLevel::ERROR;
+            case LogLevel::FATAL:
+                return AdvancedLogging::LogLevel::FATAL;
+            default:
+                return AdvancedLogging::LogLevel::INFO;
+        }
+    }
+    
+    /**
      * @brief Registra le metriche di sistema.
      */
     void logSystemMetrics() {
-        // Se abbiamo un ResourceManager nell'ErrorHandler, lo usiamo per ottenere le metriche
-        if (m_errorHandler && m_errorHandler->getCore()) {
-            auto core = m_errorHandler->getCore();
-            auto resourceManager = core->getResourceManager();
-            
-            if (resourceManager) {
-                // Otteniamo le informazioni sulle risorse
-                auto memoryUsage = resourceManager->getMemoryUsage();
-                auto diskUsage = resourceManager->getDiskUsage();
-                
-                // Registriamo le informazioni
-                std::stringstream ss;
-                ss << "Memory: " << memoryUsage.usedBytes / (1024 * 1024) << " MB / " 
-                   << memoryUsage.totalBytes / (1024 * 1024) << " MB (" 
-                   << static_cast<int>(memoryUsage.usedPercentage) << "%)";
-                Logger::getInstance().info(ss.str(), "SystemMetrics");
-                
-                ss.str("");
-                ss << "Disk: " << diskUsage.usedBytes / (1024 * 1024 * 1024) << " GB / " 
-                   << diskUsage.totalBytes / (1024 * 1024 * 1024) << " GB (" 
-                   << static_cast<int>(diskUsage.usedPercentage) << "%)";
-                Logger::getInstance().info(ss.str(), "SystemMetrics");
-            }
-        }
+        // Registriamo informazioni di base sul sistema
+        std::stringstream ss;
+        ss << "Sistema: Registrazione metriche attiva con intervallo di " << m_metricsIntervalSeconds << " secondi";
+        Logger::getInstance().info(ss.str(), "SystemMetrics");
+        
+        // In una versione più avanzata, qui si potrebbero registrare metriche reali
+        // come utilizzo CPU, memoria, ecc.
         
         // Registriamo anche informazioni sul logger stesso
-        std::stringstream ss;
+        ss.str("");
         ss << "Logger: Current log level is " << logLevelToString(Logger::getInstance().getLevel());
         Logger::getInstance().info(ss.str(), "SystemMetrics");
     }
