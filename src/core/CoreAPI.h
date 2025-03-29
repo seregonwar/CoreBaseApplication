@@ -4,9 +4,22 @@
 #include <vector>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 // Forward declaration delle classi necessarie
 namespace CoreNS {
     class ErrorHandler;
+    class ConfigManager;
+    class ResourceManager;
+    class ModuleManager;
+    class IPCManager;
+    class Core;
+    enum class LogLevel;
+    struct ChannelInfo;
+    struct SystemResources;
+    struct ModuleInfo;
+    enum class IPCType;
+    enum class IPCRole;
+    enum class ResourceType;
 }
 
 #include "CoreClass/ResourceManager.h"
@@ -23,7 +36,7 @@ enum class APILogLevel {
     DEBUG,
     INFO,
     WARNING,
-    ERROR,
+    ERR,
     FATAL
 };
 
@@ -704,12 +717,12 @@ private:
         CoreAPIImpl();
         ~CoreAPIImpl();
 
-        std::shared_ptr<Core> m_core;
-        std::shared_ptr<ConfigManager> m_configManager;
-        std::shared_ptr<ResourceManager> m_resourceManager;
-        std::shared_ptr<ModuleManager> m_moduleManager;
-        std::shared_ptr<ErrorHandler> m_errorHandler;
-        std::shared_ptr<IPCManager> m_ipcManager;
+        std::shared_ptr<CoreNS::Core> m_core;
+        std::shared_ptr<CoreNS::ConfigManager> m_configManager;
+        std::shared_ptr<CoreNS::ResourceManager> m_resourceManager;
+        std::shared_ptr<CoreNS::ModuleManager> m_moduleManager;
+        std::shared_ptr<CoreNS::ErrorHandler> m_errorHandler;
+        std::shared_ptr<CoreNS::IPCManager> m_ipcManager;
         std::unordered_map<std::string, std::vector<std::pair<int, APIResourceCallback>>> m_resourceCallbacks;
     };
     std::unique_ptr<CoreAPIImpl> m_impl;

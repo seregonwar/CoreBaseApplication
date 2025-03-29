@@ -10,6 +10,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <psapi.h>
+#include <pdh.h>
+#pragma comment(lib, "pdh.lib")
 #elif defined(__linux__)
 #include <sys/sysinfo.h>
 #include <sys/statvfs.h>
@@ -23,12 +25,24 @@
 
 namespace CoreNS {
 
-ResourceManager::ResourceManager() : m_stopMonitoring(false), m_errorHandler(nullptr) {
+ResourceManager::ResourceManager() : m_stopMonitoring(false), m_errorHandler(nullptr), m_nextCallbackId(0) {
     // L'ErrorHandler verrà inizializzato durante initialize()
+    
+    #ifdef _WIN32
+    // Inizializzazione contatori PDH per CPU
+    PdhOpenQuery(NULL, 0, &m_cpuQuery);
+    PdhAddCounterA(m_cpuQuery, "\\Processor(_Total)\\% Processor Time", 0, &m_cpuTotal);
+    PdhCollectQueryData(m_cpuQuery);
+    #endif
 }
 
 ResourceManager::~ResourceManager() {
     shutdown();
+    
+    #ifdef _WIN32
+    // Chiusura contatori PDH
+    PdhCloseQuery(m_cpuQuery);
+    #endif
 }
 
 bool ResourceManager::initialize() {
@@ -96,7 +110,32 @@ void ResourceManager::updateResources() {
     while (!m_stopMonitoring) {
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            // TODO: Implement actual resource monitoring
+            
+            #ifdef _WIN32
+            // Aggiorna CPU Usage
+            PDH_FMT_COUNTERVALUE counterVal;
+            PdhCollectQueryData(m_cpuQuery);
+            PdhGetFormattedCounterValue(m_cpuTotal, PDH_FMT_DOUBLE, NULL, &counterVal);
+            m_currentResources.cpuUsagePercent = counterVal.doubleValue;
+            
+            // Aggiorna Memory Usage
+            MEMORYSTATUSEX memInfo;
+            memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+            GlobalMemoryStatusEx(&memInfo);
+            m_currentResources.totalMemoryBytes = static_cast<double>(memInfo.ullTotalPhys);
+            m_currentResources.availableMemoryBytes = static_cast<double>(memInfo.ullAvailPhys);
+            
+            // Aggiorna Disk Usage
+            ULARGE_INTEGER freeBytesAvailable, totalBytes, totalFreeBytes;
+            GetDiskFreeSpaceExA("C:\\", &freeBytesAvailable, &totalBytes, &totalFreeBytes);
+            m_currentResources.totalDiskBytes = static_cast<double>(totalBytes.QuadPart);
+            m_currentResources.availableDiskBytes = static_cast<double>(totalFreeBytes.QuadPart);
+            
+            // Network e GPU restano a 0 per ora (richiedono librerie aggiuntive)
+            m_currentResources.networkUsagePercent = 0.0;
+            m_currentResources.gpuUsagePercent = 0.0;
+            #else
+            // Implementazione di default per altri OS o non implementato
             m_currentResources.cpuUsagePercent = 0.0;
             m_currentResources.availableMemoryBytes = 0.0;
             m_currentResources.totalMemoryBytes = 0.0;
@@ -104,6 +143,7 @@ void ResourceManager::updateResources() {
             m_currentResources.totalDiskBytes = 0.0;
             m_currentResources.networkUsagePercent = 0.0;
             m_currentResources.gpuUsagePercent = 0.0;
+            #endif
         }
 
         checkThresholds();
@@ -116,6 +156,11 @@ void ResourceManager::checkThresholds() {
     for (const auto& [id, callbackPair] : m_callbacks) {
         callbackPair.second(m_currentResources);
     }
+}
+
+uint64_t ResourceManager::getAvailableMemory() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return static_cast<uint64_t>(m_currentResources.availableMemoryBytes);
 }
 
 } // namespace CoreNS 

@@ -11,6 +11,11 @@
 #include <memory>
 #include "SystemResources.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <pdh.h>
+#endif
+
 namespace CoreNS {
 
 /**
@@ -126,6 +131,12 @@ private:
     SystemResources m_resources;
     std::vector<ThresholdCallback> m_thresholdCallbacks;
     int m_lastCallbackId{0};
+
+    // Contatori per monitoraggio CPU su Windows
+    #ifdef _WIN32
+    PDH_HQUERY m_cpuQuery;
+    PDH_HCOUNTER m_cpuTotal;
+    #endif
 
     // Metodi privati per il monitoraggio
     void updateResources();
