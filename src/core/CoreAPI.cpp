@@ -5,8 +5,10 @@
 #include "CoreClass/ModuleManager.h"
 #include "CoreClass/ErrorHandler.h"
 #include "CoreClass/IPCManager.h"
-#include "bindings/bridge/PythonBridge/PythonBridge.h"
-#include "bindings/bridge/JavaBridge/JavaBridge.h"
+#include "Monitoring/SystemMonitor.h"
+#include "bindings/python/python_bindings.h"
+
+// #include "bindings/java/JavaBindings.h" // decommenta se/quando necessario
 #include <nlohmann/json.hpp>
 #include "CoreClass/LogManager.h"
 
@@ -21,7 +23,11 @@ namespace fs = std::filesystem;
 namespace CoreNS {
 
 CoreAPI::CoreAPIImpl::CoreAPIImpl() : m_core(nullptr), m_configManager(nullptr), m_resourceManager(nullptr),
-                   m_moduleManager(nullptr), m_errorHandler(nullptr), m_ipcManager(nullptr) {
+                   m_moduleManager(nullptr), m_errorHandler(nullptr), m_ipcManager(nullptr), m_systemMonitor(nullptr)
+#ifdef USE_PYTHON_BINDINGS
+                   , m_pythonEngine(nullptr)
+#endif
+{
     m_core = std::make_shared<Core>();
     if (m_core) {
         m_configManager = m_core->getConfigManager();
@@ -29,10 +35,17 @@ CoreAPI::CoreAPIImpl::CoreAPIImpl() : m_core(nullptr), m_configManager(nullptr),
         m_moduleManager = m_core->getModuleManager();
         m_errorHandler = m_core->getErrorHandler();
         m_ipcManager = m_core->getIPCManager();
+        m_systemMonitor = std::make_shared<SystemMonitor>();
     }
 }
 
-CoreAPI::CoreAPIImpl::~CoreAPIImpl() = default;
+CoreAPI::CoreAPIImpl::~CoreAPIImpl() {
+#ifdef USE_PYTHON_BINDINGS
+    if (m_pythonEngine) {
+        m_pythonEngine->finalize();
+    }
+#endif
+}
 
 // Funzioni di conversione
 namespace {
@@ -84,7 +97,29 @@ CoreAPI::CoreAPI() : m_impl(std::make_unique<CoreAPIImpl>()) {
 CoreAPI::~CoreAPI() = default;
 
 bool CoreAPI::initialize(const std::string& configPath) {
-    return m_impl->m_core->initialize(configPath);
+    if (!m_impl->m_core->initialize(configPath)) {
+        return false;
+    }
+
+    std::string modulePath = m_impl->m_configManager->getValue<std::string>("module_path", "modules");
+    if (!fs::exists(modulePath) || !fs::is_directory(modulePath)) {
+        return true; // Non è un errore se la cartella dei moduli non esiste
+    }
+
+    for (const auto& entry : fs::directory_iterator(modulePath)) {
+        if (entry.is_regular_file()) {
+#ifdef _WIN32
+            if (entry.path().extension() == ".dll") {
+#else
+            if (entry.path().extension() == ".so") {
+#endif
+                std::string moduleName = entry.path().stem().string();
+                loadModule(moduleName);
+            }
+        }
+    }
+
+    return true;
 }
 
 void CoreAPI::shutdown() {
@@ -176,6 +211,13 @@ bool CoreAPI::isModuleLoaded(const std::string& moduleName) const {
         return m_impl->m_moduleManager->isModuleLoaded(moduleName);
     }
     return false;
+}
+
+APISystemResources CoreAPI::getSystemResourceUsage() {
+    if (m_impl && m_impl->m_systemMonitor) {
+        return convertToAPISystemResources(m_impl->m_systemMonitor->getSystemResourceUsage());
+    }
+    return APISystemResources{}; // Ritorna una struct vuota in caso di errore
 }
 
 std::vector<std::string> CoreAPI::getLoadedModules() const {
@@ -419,12 +461,7 @@ bool CoreAPI::initializePython(const std::string& pythonHome) {
     return true;
 }
 
-bool CoreAPI::importPythonModule(const std::string& moduleName) {
-    // Simile a initializePython, qui dovremmo avere accesso a PythonBridge
-    
-    log(static_cast<APILogLevel>(1), "Importazione modulo Python: " + moduleName); // INFO = 1
-    return true;
-}
+// Funzione rimossa - ora implementata nella sezione USE_PYTHON_BINDINGS
 
 bool CoreAPI::executePythonFunction(const std::string& moduleName, const std::string& funcName, 
                                    const std::string& args) {
@@ -453,6 +490,233 @@ bool CoreAPI::executePythonCode(const std::string& code) {
     log(static_cast<APILogLevel>(1), "Esecuzione codice Python"); // INFO = 1
     return true;
 }
+
+std::string CoreAPI::executePythonScriptWithOutput(const std::string& code) {
+#ifdef USE_PYTHON_BINDINGS
+    return execute_python_script_with_output(code);
+#else
+    return "[Python bindings non disponibili]";
+#endif
+}
+
+#ifdef USE_PYTHON_BINDINGS
+// Implementazione metodi Python avanzati
+bool CoreAPI::initializePythonEngine() {
+    if (!m_impl->m_pythonEngine) {
+        m_impl->m_pythonEngine = std::make_unique<PythonScriptingEngine>();
+    }
+    return m_impl->m_pythonEngine->initialize();
+}
+
+void CoreAPI::finalizePythonEngine() {
+    if (m_impl->m_pythonEngine) {
+        m_impl->m_pythonEngine->finalize();
+    }
+}
+
+std::string CoreAPI::executePythonString(const std::string& code) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return "Errore: Impossibile inizializzare l'interprete Python";
+        }
+    }
+    return m_impl->m_pythonEngine->execString(code);
+}
+
+std::string CoreAPI::executePythonFile(const std::string& filename) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return "Errore: Impossibile inizializzare l'interprete Python";
+        }
+    }
+    return m_impl->m_pythonEngine->execFile(filename);
+}
+
+bool CoreAPI::executePythonStringQuiet(const std::string& code) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return false;
+        }
+    }
+    return m_impl->m_pythonEngine->execStringQuiet(code);
+}
+
+bool CoreAPI::executePythonFileQuiet(const std::string& filename) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return false;
+        }
+    }
+    return m_impl->m_pythonEngine->execFileQuiet(filename);
+}
+
+bool CoreAPI::setPythonVariable(const std::string& name, const std::string& value) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return false;
+        }
+    }
+    return m_impl->m_pythonEngine->setVariable(name, value);
+}
+
+bool CoreAPI::setPythonVariable(const std::string& name, int value) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return false;
+        }
+    }
+    return m_impl->m_pythonEngine->setVariable(name, value);
+}
+
+bool CoreAPI::setPythonVariable(const std::string& name, double value) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return false;
+        }
+    }
+    return m_impl->m_pythonEngine->setVariable(name, value);
+}
+
+bool CoreAPI::setPythonVariable(const std::string& name, bool value) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return false;
+        }
+    }
+    return m_impl->m_pythonEngine->setVariable(name, value);
+}
+
+std::string CoreAPI::getPythonVariable(const std::string& name) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return "";
+        }
+    }
+    return m_impl->m_pythonEngine->getVariable(name);
+}
+
+bool CoreAPI::importPythonModule(const std::string& moduleName) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return false;
+        }
+    }
+    return m_impl->m_pythonEngine->importModule(moduleName);
+}
+
+bool CoreAPI::importPythonModuleAs(const std::string& moduleName, const std::string& alias) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return false;
+        }
+    }
+    return m_impl->m_pythonEngine->importModuleAs(moduleName, alias);
+}
+
+std::vector<std::string> CoreAPI::getLoadedPythonModules() {
+    if (!m_impl->m_pythonEngine) {
+        return {};
+    }
+    return m_impl->m_pythonEngine->getLoadedModules();
+}
+
+std::string CoreAPI::callPythonFunction(const std::string& functionName, const std::vector<std::string>& args) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return "Errore: Impossibile inizializzare l'interprete Python";
+        }
+    }
+    return m_impl->m_pythonEngine->callFunction(functionName, args);
+}
+
+std::string CoreAPI::callPythonModuleFunction(const std::string& moduleName, const std::string& functionName, const std::vector<std::string>& args) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return "Errore: Impossibile inizializzare l'interprete Python";
+        }
+    }
+    return m_impl->m_pythonEngine->callModuleFunction(moduleName, functionName, args);
+}
+
+bool CoreAPI::addToPythonPath(const std::string& path) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return false;
+        }
+    }
+    return m_impl->m_pythonEngine->addToPath(path);
+}
+
+std::vector<std::string> CoreAPI::getPythonPath() {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return {};
+        }
+    }
+    return m_impl->m_pythonEngine->getPythonPath();
+}
+
+std::string CoreAPI::getPythonVersion() {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return "";
+        }
+    }
+    return m_impl->m_pythonEngine->getPythonVersion();
+}
+
+std::string CoreAPI::getPythonExecutable() {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return "";
+        }
+    }
+    return m_impl->m_pythonEngine->getPythonExecutable();
+}
+
+bool CoreAPI::isPythonInitialized() {
+    if (!m_impl->m_pythonEngine) {
+        return false;
+    }
+    return m_impl->m_pythonEngine->isInitialized();
+}
+
+std::string CoreAPI::getPythonLastError() {
+    if (!m_impl->m_pythonEngine) {
+        return "Interprete Python non inizializzato";
+    }
+    return m_impl->m_pythonEngine->getLastError();
+}
+
+void CoreAPI::clearPythonError() {
+    if (m_impl->m_pythonEngine) {
+        m_impl->m_pythonEngine->clearError();
+    }
+}
+
+bool CoreAPI::savePythonState(const std::string& filename) {
+    if (!m_impl->m_pythonEngine) {
+        return false;
+    }
+    return m_impl->m_pythonEngine->saveState(filename);
+}
+
+bool CoreAPI::loadPythonState(const std::string& filename) {
+    if (!m_impl->m_pythonEngine) {
+        if (!initializePythonEngine()) {
+            return false;
+        }
+    }
+    return m_impl->m_pythonEngine->loadState(filename);
+}
+
+bool CoreAPI::resetPythonEngine() {
+    if (!m_impl->m_pythonEngine) {
+        return initializePythonEngine();
+    }
+    return m_impl->m_pythonEngine->reset();
+}
+#endif
 
 //------------------------------------------------------------------
 // Integrazione Java
@@ -670,4 +934,4 @@ int CoreAPI::registerResourceCallback(const std::string& resourceType, int thres
     return id;
 }
 
-} // namespace CoreNS 
+} // namespace CoreNS

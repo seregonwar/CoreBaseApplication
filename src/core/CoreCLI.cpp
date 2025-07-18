@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include "../bindings/python/python_bindings.h"
 
 namespace CoreNS {
 
@@ -108,6 +109,29 @@ void CoreCLI::registerDefaultCommands() {
             }
         }
     });
+
+    addCommand("run-python", "Esegue uno script Python: run-python <percorso_script>", [this](const auto& args) {
+        if (args.empty()) {
+            std::cout << "Uso: run-python <percorso_script.py>\n";
+            return;
+        }
+#ifdef USE_PYTHON_BINDINGS
+        PythonScriptingEngine engine;
+        if (!engine.initialize()) {
+            std::cout << "Errore nell'inizializzazione dell'interprete Python\n";
+            return;
+        }
+        if (engine.execFile(args[0])) {
+            std::cout << "Script Python eseguito con successo\n";
+        } else {
+            std::cout << "Errore nell'esecuzione dello script Python\n";
+            engine.handlePythonErrors();
+        }
+        engine.finalize();
+#else
+        std::cout << "Python bindings non abilitati in questa build." << std::endl;
+#endif
+    });
 }
 
 void CoreCLI::printHelp() {
@@ -115,6 +139,8 @@ void CoreCLI::printHelp() {
     for (const auto& cmd : m_commands) {
         std::cout << "  " << cmd.name << " - " << cmd.description << std::endl;
     }
+    std::cout << std::endl;
+    std::cout << "Esempio: run-python examples/python_monitor/src/test_ui.py\n";
 }
 
 std::vector<std::string> CoreCLI::parseCommandLine(const std::string& line) {

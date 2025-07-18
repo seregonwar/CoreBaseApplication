@@ -1,0 +1,29 @@
+{
+    "app": {
+        "name": "Python Resource Monitor",
+        "version": "1.0.0",
+        "log_level": "INFO",
+        "update_interval": 5
+    },
+    "monitoring": {
+        "cpu": true,
+        "memory": true,
+        "disk": true,
+        "network": false,
+        "gpu": false
+    },
+    "alerts": {
+        "cpu_threshold": 80,
+        "memory_threshold": 85,
+        "disk_threshold": 90,
+        "network_threshold": 80,
+        "gpu_threshold": 75,
+        "email_notifications": false,
+        "email_to": ""
+    },
+    "ui": {
+        "refresh_rate": 1.0,
+        "show_graphs": true,
+        "dark_mode": true
+    }
+}

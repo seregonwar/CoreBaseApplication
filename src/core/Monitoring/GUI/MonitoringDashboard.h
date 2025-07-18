@@ -5,8 +5,9 @@
 #include <memory>
 #include <thread>
 #include <atomic>
-#include <SFML/Graphics.hpp>
+#include <imgui.h>
 #include "../../CoreAPI.h"
+#include <deque>
 
 namespace CoreNS {
 namespace Monitoring {
@@ -24,24 +25,23 @@ private:
     void updateResources();
     void render();
     void handleEvents();
-    void drawResourceBar(float value, float maxValue, float yPos, const sf::Color& color);
-    void drawText(const std::string& text, float x, float y);
 
-    sf::RenderWindow m_window;
-    sf::Font m_font;
-    std::vector<sf::RectangleShape> m_resourceBars;
-    std::vector<sf::Text> m_resourceLabels;
-    std::vector<sf::Text> m_resourceValues;
-    
-    CoreAPI m_api;
+    // --- UI State ---
+    int m_selectedTab = 0; // 0: Monitoraggio, 1: CBA API
+    std::deque<float> m_cpuHistory; // storico CPU
+    std::deque<float> m_memHistory; // storico memoria
+    static constexpr size_t HISTORY_SIZE = 120;
+    std::vector<std::string> m_logLines; // log/output delle chiamate API
+    std::string m_apiInputStr; // input generico per funzioni API
+    std::string m_apiOutputStr; // output generico
+    // ---
+
     std::thread m_updateThread;
     std::atomic<bool> m_running;
-    
-    static constexpr int WINDOW_WIDTH = 800;
-    static constexpr int WINDOW_HEIGHT = 600;
-    static constexpr float BAR_WIDTH = 600.0f;
-    static constexpr float BAR_HEIGHT = 30.0f;
-    static constexpr float BAR_SPACING = 50.0f;
+    CoreAPI m_api;
+    // Risorse da mostrare
+    float m_cpuUsage = 0.0f;
+    float m_memoryMB = 0.0f;
 };
 
 } // namespace Monitoring

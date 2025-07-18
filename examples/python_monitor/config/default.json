@@ -1,0 +1,29 @@
+{
+    "app": {
+        "name": "PythonSystemMonitor",
+        "version": "1.0.0",
+        "log_level": 1,
+        "update_interval": 5
+    },
+    "system": {
+        "monitor_cpu": true,
+        "monitor_memory": true,
+        "monitor_disk": true,
+        "monitor_network": true,
+        "monitor_gpu": false,
+        "cpu_threshold": 80,
+        "memory_threshold": 85,
+        "disk_threshold": 90,
+        "network_threshold": 80,
+        "gpu_threshold": 75
+    },
+    "alerts": {
+        "email_notifications": false,
+        "email_recipient": ""
+    },
+    "ui": {
+        "refresh_rate": 1000,
+        "show_graphs": true,
+        "dark_mode": true
+    }
+}

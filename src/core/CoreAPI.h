@@ -12,6 +12,7 @@ namespace CoreNS {
     class ResourceManager;
     class ModuleManager;
     class IPCManager;
+    class SystemMonitor; // Aggiunto
     class Core;
     enum class LogLevel;
     struct ChannelInfo;
@@ -23,9 +24,13 @@ namespace CoreNS {
 }
 
 #include "CoreClass/ResourceManager.h"
-#include "Core.h"
+#include "CoreClass/Core.h"
 #include "CoreClass/ModuleInfo.h"
 #include "CoreClass/SystemResources.h"
+#include "Monitoring/SystemMonitor.h" // Aggiunto
+#ifdef USE_PYTHON_BINDINGS
+#include "bindings/python/python_bindings.h"
+#endif
 
 namespace CoreNS {
 
@@ -315,11 +320,11 @@ public:
     bool initializePython(const std::string& pythonHome = "");
     
     /**
-     * @brief Importa un modulo Python
+     * @brief Importa un modulo Python (legacy)
      * @param moduleName Nome del modulo da importare
      * @return true se l'importazione è avvenuta con successo, false altrimenti
      */
-    bool importPythonModule(const std::string& moduleName);
+    bool importPythonModuleLegacy(const std::string& moduleName);
     
     /**
      * @brief Esegue una funzione Python
@@ -337,6 +342,53 @@ public:
      * @return true se l'esecuzione è avvenuta con successo, false altrimenti
      */
     bool executePythonCode(const std::string& code);
+    
+    /**
+     * @brief Esegue uno script Python e restituisce l'output
+     * @param code Codice Python da eseguire
+     * @return Output dello script
+     */
+    std::string executePythonScriptWithOutput(const std::string& code);
+    
+    // Gestione interprete Python avanzato
+    bool initializePythonEngine();
+    void finalizePythonEngine();
+    std::string executePythonString(const std::string& code);
+    std::string executePythonFile(const std::string& filename);
+    bool executePythonStringQuiet(const std::string& code);
+    bool executePythonFileQuiet(const std::string& filename);
+    
+    // Gestione variabili Python
+    bool setPythonVariable(const std::string& name, const std::string& value);
+    bool setPythonVariable(const std::string& name, int value);
+    bool setPythonVariable(const std::string& name, double value);
+    bool setPythonVariable(const std::string& name, bool value);
+    std::string getPythonVariable(const std::string& name);
+    
+    // Gestione moduli Python
+    bool importPythonModule(const std::string& moduleName);
+    bool importPythonModuleAs(const std::string& moduleName, const std::string& alias);
+    std::vector<std::string> getLoadedPythonModules();
+    
+    // Chiamata funzioni Python
+    std::string callPythonFunction(const std::string& functionName, const std::vector<std::string>& args = {});
+    std::string callPythonModuleFunction(const std::string& moduleName, const std::string& functionName, const std::vector<std::string>& args = {});
+    
+    // Gestione path Python
+    bool addToPythonPath(const std::string& path);
+    std::vector<std::string> getPythonPath();
+    
+    // Informazioni interprete Python
+    std::string getPythonVersion();
+    std::string getPythonExecutable();
+    bool isPythonInitialized();
+    std::string getPythonLastError();
+    void clearPythonError();
+    
+    // Salva/carica stato interprete Python
+    bool savePythonState(const std::string& filename);
+    bool loadPythonState(const std::string& filename);
+    bool resetPythonEngine();
     
     //----------------------------------------------
     // Integrazione Java
@@ -701,6 +753,16 @@ public:
      * @return Percentuale di utilizzo del disco
      */
     double getDiskUsage() const;
+
+    //----------------------------------------------
+    // Monitoraggio
+    //----------------------------------------------
+
+    /**
+     * @brief Ottiene l'utilizzo delle risorse di sistema
+     * @return Struct contenente le informazioni sull'utilizzo delle risorse
+     */
+    APISystemResources getSystemResourceUsage();
     
     // IPC Methods
     bool initializeIPC();
@@ -723,9 +785,13 @@ private:
         std::shared_ptr<CoreNS::ModuleManager> m_moduleManager;
         std::shared_ptr<CoreNS::ErrorHandler> m_errorHandler;
         std::shared_ptr<CoreNS::IPCManager> m_ipcManager;
+        std::shared_ptr<CoreNS::SystemMonitor> m_systemMonitor;
         std::unordered_map<std::string, std::vector<std::pair<int, APIResourceCallback>>> m_resourceCallbacks;
+#ifdef USE_PYTHON_BINDINGS
+        std::unique_ptr<PythonScriptingEngine> m_pythonEngine;
+#endif
     };
     std::unique_ptr<CoreAPIImpl> m_impl;
 };
 
-} // namespace CoreNS 
+} // namespace CoreNS

@@ -3,6 +3,12 @@
 #include "ErrorHandler.h"
 #include "ModuleInfo.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
 namespace CoreNS {
 
 ModuleManager::ModuleManager() {
@@ -30,12 +36,42 @@ bool ModuleManager::loadModule(const std::string& moduleName) {
         return false;
     }
 
+#ifdef _WIN32
+    std::string libPath = moduleName + ".dll";
+    HMODULE handle = LoadLibrary(libPath.c_str());
+#else
+    std::string libPath = "./lib" + moduleName + ".so";
+    void* handle = dlopen(libPath.c_str(), RTLD_LAZY);
+#endif
+
+    if (!handle) {
+        m_errorHandler->handleError("Failed to load module: " + moduleName, __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+#ifdef _WIN32
+    using GetModuleInfoFunc = void(*)(ModuleInfo*);
+    auto getModuleInfo = (GetModuleInfoFunc)GetProcAddress(handle, "getModuleInfo");
+#else
+    using GetModuleInfoFunc = void(*)(ModuleInfo*);
+    auto getModuleInfo = (GetModuleInfoFunc)dlsym(handle, "getModuleInfo");
+#endif
+
+    if (!getModuleInfo) {
+        m_errorHandler->handleError("Failed to find getModuleInfo in module: " + moduleName, __FILE__, __LINE__, __FUNCTION__);
+#ifdef _WIN32
+        FreeLibrary(handle);
+#else
+        dlclose(handle);
+#endif
+        return false;
+    }
+
     auto moduleInfo = std::make_shared<ModuleInfo>();
+    getModuleInfo(moduleInfo.get());
+
     moduleInfo->name = moduleName;
-    moduleInfo->version = "1.0.0"; // TODO: Get from module metadata
-    moduleInfo->description = "Module description"; // TODO: Get from module metadata
-    moduleInfo->author = "Unknown"; // TODO: Get from module metadata
-    moduleInfo->type = ModuleType::PLUGIN; // TODO: Get from module metadata
+    moduleInfo->handle = handle;
     moduleInfo->isLoaded = true;
 
     m_loadedModules[moduleName] = moduleInfo;
@@ -47,6 +83,14 @@ bool ModuleManager::unloadModule(const std::string& moduleName) {
     if (it == m_loadedModules.end()) {
         return false;
     }
+
+    auto moduleInfo = it->second;
+
+#ifdef _WIN32
+    FreeLibrary(static_cast<HMODULE>(moduleInfo->handle));
+#else
+    dlclose(moduleInfo->handle);
+#endif
 
     m_loadedModules.erase(it);
     return true;
@@ -72,4 +116,4 @@ std::shared_ptr<ModuleInfo> ModuleManager::getModuleInfo(const std::string& modu
     return it->second;
 }
 
-} // namespace CoreNS 
+} // namespace CoreNS

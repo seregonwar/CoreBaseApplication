@@ -20,6 +20,7 @@ struct ModuleInfo {
     ModuleType type;
     std::vector<std::string> dependencies;
     bool isLoaded;
+    void* handle{nullptr}; // Handle della libreria dinamica
 };
 
-} // namespace CoreNS 
+} // namespace CoreNS
