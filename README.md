@@ -19,8 +19,76 @@ CoreBaseApplication (CBA) è un framework modulare C++ progettato per fornire un
 
 CoreBaseApplication è strutturato attorno a un nucleo centrale (`Core`) che fornisce servizi fondamentali e coordina l'interazione tra i vari moduli del sistema. L'architettura segue i principi della programmazione orientata agli oggetti e adotta diversi pattern di design come Singleton, Factory, Observer e Strategy.
 
+## Architecture Diagram
 ### Struttura generale
+```mermaid
 
+graph TD
+    A[CoreBaseApplication] --> B[CoreAPI]
+    A --> C[AdvancedLogging]
+    A --> D[Monitoring]
+    A --> E[Security]
+    A --> F[Extensions]
+    A --> G[DynamicModules]
+    
+    B -->|Manages| H[Configuration]
+    B -->|Coordinates| I[Module Loading]
+    
+    C --> J[RotatingLogger]
+    C --> K[LogAppenders]
+    C --> L[LogLevels]
+    
+    D --> M[MonitoringSystem]
+    D --> N[EventTracker]
+    D --> O[Performance Reports]
+    
+    E --> P[AuthenticationManager]
+    E --> Q[CodeProtection]
+    E --> R[Encryption]
+    
+    F --> S[EventSystem]
+    F --> T[NetworkManager]
+    F --> U[Utilities]
+    
+    G --> V[ModuleLoader]
+    G --> W[ModuleInterface]
+    
+    subgraph Execution Flow
+        direction LR
+        X[Initialize] --> Y[Load Config]
+        Y --> Z[Init Subsystems]
+        Z --> AA[Load Modules]
+        AA --> AB[Run Logic]
+        AB --> AC[Shutdown]
+    end
+    
+    style A fill:#2ecc71,stroke:#27ae60,stroke-width:2px,color:white
+    style B fill:#3498db,stroke:#2980b9
+    style C fill:#e74c3c,stroke:#c0392b
+    style D fill:#9b59b6,stroke:#8e44ad
+    style E fill:#f39c12,stroke:#d35400
+    style F fill:#1abc9c,stroke:#16a085
+    style G fill:#34495e,stroke:#2c3e50,color:white
+```
+### Execution Flow
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant CoreAPI
+    participant Config
+    participant Subsystems
+    participant Modules
+    participant Logic
+    
+    App->>CoreAPI: initialize()
+    CoreAPI->>Config: load configuration
+    CoreAPI->>Subsystems: initialize subsystems
+    CoreAPI->>Modules: load dynamic modules
+    App->>Logic: run application logic
+    App->>CoreAPI: shutdown()
+    CoreAPI->>Modules: unload modules
+    CoreAPI->>Subsystems: shutdown subsystems
+```
 ```
 CoreBaseApplication/
 ├── src/
