@@ -248,7 +248,7 @@ if (getResponse.isSuccess()) {
 
 // Read (list with pagination)
 PaginationParams pagination = {1, 10}; // page 1, 10 items per page
-FilterParams filters = {{"status", "active"}, {"role", "admin"}};
+{% raw %}FilterParams filters = {{"status", "active"}, {"role", "admin"}};{% endraw %}
 RestResponse<std::vector<User>> listResponse = userClient.list(pagination, filters);
 
 // Update
