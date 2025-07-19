@@ -446,7 +446,7 @@ DashboardWidget memoryWidget;
 memoryWidget.type = WidgetType::GAUGE;
 memoryWidget.title = "Memory Usage";
 memoryWidget.metrics = {"memory_usage"};
-memoryWidget.thresholds = {{70, "yellow"}, {90, "red"}};
+memoryWidget.thresholds = {% raw %}{{70, "yellow"}, {90, "red"}}{% endraw %};
 memoryWidget.position = {6, 0, 3, 4};
 
 monitor.addDashboardWidget(memoryWidget);
