@@ -200,7 +200,7 @@ public:
                 {"timestamp", TimeUtils::formatTimestamp(TimeUtils::now())}
             };
             
-            return HttpResponse{200, "OK", health.dump(), {{"Content-Type", "application/json"}}};
+            return HttpResponse{200, "OK", health.dump(), {% raw %}{{"Content-Type", "application/json"}}{% endraw %}};
         });
         
         // Service info endpoint
@@ -213,7 +213,7 @@ public:
                 {"tags", m_serviceInfo.tags}
             };
             
-            return HttpResponse{200, "OK", info.dump(), {{"Content-Type", "application/json"}}};
+            return HttpResponse{200, "OK", info.dump(), {% raw %}{{"Content-Type", "application/json"}}{% endraw %}};
         });
         
         // Business logic endpoints
@@ -837,7 +837,7 @@ public:
             SystemAlertEvent::Level::ERROR,
             "Database connection failed",
             "DatabaseManager",
-            {{"host", "db.example.com"}, {"port", "5432"}}
+            {% raw %}{{"host", "db.example.com"}, {"port", "5432"}}{% endraw %}
         };
         m_eventBus.publish(alertEvent);
     }

@@ -1201,7 +1201,7 @@ groups:
           severity: critical
         annotations:
           summary: "Service is down"
-          description: "{{ $labels.instance }} has been down for more than 1 minute"
+          description: "{% raw %}{{ $labels.instance }}{% endraw %} has been down for more than 1 minute"
       
       - alert: DatabaseConnectionFailure
         expr: database_connections_failed_total > 0
@@ -1620,7 +1620,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: {% raw %}${{ github.repository }}{% endraw %}
 
 jobs:
   test:
@@ -1664,26 +1664,26 @@ jobs:
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: {% raw %}${{ env.REGISTRY }}{% endraw %}
+        username: {% raw %}${{ github.actor }}{% endraw %}
+        password: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
           
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: {% raw %}${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}{% endraw %}
           tags: |
             type=ref,event=tag
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable={% raw %}{{is_default_branch}}{% endraw %}
             
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: {% raw %}${{ steps.meta.outputs.tags }}{% endraw %}
+        labels: {% raw %}${{ steps.meta.outputs.labels }}{% endraw %}
           
   deploy:
     needs: build-and-push
@@ -1700,7 +1700,7 @@ jobs:
           
       - name: Configure kubectl
         run: |
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+          echo "{% raw %}${{ secrets.KUBECONFIG }}{% endraw %}" | base64 -d > kubeconfig
           export KUBECONFIG=kubeconfig
           
       - name: Deploy to Kubernetes
@@ -1708,7 +1708,7 @@ jobs:
           export KUBECONFIG=kubeconfig
           
           # Update image tag
-          kubectl set image deployment/cba-deployment cba=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }} -n cba-production
+          kubectl set image deployment/cba-deployment cba={% raw %}${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}{% endraw %} -n cba-production
           
           # Wait for rollout
           kubectl rollout status deployment/cba-deployment -n cba-production --timeout=600s
@@ -1734,9 +1734,9 @@ jobs:
         if: always()
         uses: 8398a7/action-slack@v3
         with:
-          status: ${{ job.status }}
+          status: {% raw %}${{ job.status }}{% endraw %}
           channel: '#deployments'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          webhook_url: {% raw %}${{ secrets.SLACK_WEBHOOK }}{% endraw %}
 ```
 
 ### Deployment Scripts

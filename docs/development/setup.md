@@ -482,7 +482,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         build_type: [Debug, Release]
     
-    runs-on: ${{ matrix.os }}
+    runs-on: {% raw %}${{ matrix.os }}{% endraw %}
     
     steps:
     - uses: actions/checkout@v3
@@ -497,16 +497,16 @@ jobs:
     
     - name: Configure CMake
       run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+        cmake -B build -DCMAKE_BUILD_TYPE={% raw %}${{ matrix.build_type }}{% endraw %} \
               -DCBA_ENABLE_TESTS=ON
     
     - name: Build
-      run: cmake --build build --config ${{ matrix.build_type }}
+      run: cmake --build build --config {% raw %}${{ matrix.build_type }}{% endraw %}
     
     - name: Test
       run: |
         cd build
-        ctest --output-on-failure --build-config ${{ matrix.build_type }}
+        ctest --output-on-failure --build-config {% raw %}${{ matrix.build_type }}{% endraw %}
 ```
 
 ## Troubleshooting
