@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented Python bindings and language integrations
 - Added comprehensive examples for basic and advanced usage
 
-## [1.0.0] - TBD
+## [0.0.1b] - TBD
 
 ### Added
 - Initial release of CoreBaseApplication framework
