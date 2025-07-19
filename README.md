@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/github/license/seregonwar/CoreBaseApplication-CBA?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/github/v/release/seregonwar/CoreBaseApplication-CBA?style=flat-square)](https://github.com/seregonwar/CoreBaseApplication-CBA/releases)
 [![Documentation](https://img.shields.io/badge/docs-available-brightgreen?style=flat-square)](https://seregonwar.github.io/CoreBaseApplication-CBA)
-
+[![Github All Releases](https://img.shields.io/github/downloads/seregonwar/CoreBaseApplication/total.svg)]()
 **A modern, robust C++ framework for building scalable enterprise applications**
 
 [📚 Documentation](https://seregonwar.github.io/CoreBaseApplication-CBA) • [🚀 Quick Start](#quick-start) • [💡 Examples](docs/examples/) • [🤝 Contributing](#contributing)
