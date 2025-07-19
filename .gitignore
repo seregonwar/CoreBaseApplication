@@ -1,0 +1,197 @@
+# Build directories
+build/
+build-*/
+out/
+dist/
+bin/
+lib/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# CLion
+.idea/
+cmake-build-*/
+
+# Qt Creator
+CMakeLists.txt.user*
+
+# Conan
+conandata.yml
+conanfile.py
+conaninfo.txt
+conanbuildinfo.*
+
+# vcpkg
+vcpkg_installed/
+
+# Compiler outputs
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*.exe
+*.out
+*.app
+
+# Debug files
+*.pdb
+*.ilk
+*.map
+*.dSYM/
+*.su
+*.idb
+*.ipdb
+
+# Profiling and analysis
+*.prof
+*.gprof
+*.gcov
+*.gcda
+*.gcno
+lcov.info
+coverage/
+*.valgrind
+vgcore.*
+*.asan
+*.tsan
+*.leak
+
+# Core dumps
+core
+core.*
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Python (for bindings)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+*.egg-info/
+
+# Documentation build
+docs/_build/
+docs/_site/
+.jekyll-cache/
+.jekyll-metadata
+_site/
+.sass-cache/
+
+# Doxygen
+html/
+latex/
+xml/
+rtf/
+man/
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Configuration files (keep templates)
+config/*.json
+config/*.yaml
+config/*.yml
+!config/*.template.json
+!config/*.template.yaml
+!config/*.template.yml
+!config/example.*
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache directories
+.cache/
+cache/
+
+# Test results
+test-results/
+test-reports/
+
+# Ruby (for Jekyll)
+.bundle/
+vendor/
+Gemfile.lock
+
+# Local environment variables
+.env
+.env.local
+.env.*.local
+
+# Tags
+tags
+TAGS
+cscope.*
+GTAGS
+GRTAGS
+GPATH
+
+# Local development
+local/
+dev/
+scratch/
+
+# Performance data
+*.perf
+perf.data*

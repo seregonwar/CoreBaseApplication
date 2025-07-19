@@ -1,0 +1,147 @@
+{
+  "app": {
+    "name": "CoreBaseApplication",
+    "version": "1.0.0",
+    "description": "Framework modulare C++ per applicazioni enterprise",
+    "author": "CoreBase Team",
+    "last_run": ""
+  },
+  "logging": {
+    "level": "INFO",
+    "console_output": true,
+    "file_output": true,
+    "file_path": "logs/application.log",
+    "max_file_size_mb": 10,
+    "max_backup_files": 5,
+    "compress_old_files": true,
+    "format": "[%timestamp%] [%level%] [%category%] %message%"
+  },
+  "monitoring": {
+    "enabled": true,
+    "performance_tracking": true,
+    "system_metrics": true,
+    "report_interval_seconds": 300,
+    "thresholds": {
+      "cpu_warning": 80.0,
+      "cpu_critical": 95.0,
+      "memory_warning": 85.0,
+      "memory_critical": 95.0,
+      "disk_warning": 90.0,
+      "disk_critical": 98.0
+    }
+  },
+  "network": {
+    "default_timeout_ms": 30000,
+    "max_connections": 100,
+    "keep_alive": true,
+    "protocols": {
+      "tcp": {
+        "enabled": true,
+        "buffer_size": 8192
+      },
+      "udp": {
+        "enabled": true,
+        "buffer_size": 4096
+      },
+      "http": {
+        "enabled": true,
+        "user_agent": "CoreBaseApplication/1.0",
+        "follow_redirects": true,
+        "max_redirects": 5
+      },
+      "websocket": {
+        "enabled": false,
+        "ping_interval_ms": 30000
+      }
+    }
+  },
+  "security": {
+    "authentication": {
+      "enabled": true,
+      "session_timeout_minutes": 60,
+      "max_failed_attempts": 3,
+      "lockout_duration_minutes": 15,
+      "password_policy": {
+        "min_length": 8,
+        "require_uppercase": true,
+        "require_lowercase": true,
+        "require_numbers": true,
+        "require_special_chars": true
+      }
+    },
+    "encryption": {
+      "algorithm": "AES-256-GCM",
+      "key_derivation": "PBKDF2",
+      "iterations": 100000
+    },
+    "code_protection": {
+      "anti_debug": true,
+      "anti_tampering": true,
+      "string_obfuscation": true
+    }
+  },
+  "modules": {
+    "auto_load": true,
+    "search_paths": [
+      "./modules",
+      "./plugins",
+      "/usr/local/lib/corebase/modules"
+    ],
+    "enabled_modules": [
+      "SampleModule"
+    ]
+  },
+  "database": {
+    "type": "sqlite",
+    "connection_string": "data/application.db",
+    "pool_size": 10,
+    "timeout_seconds": 30,
+    "auto_migrate": true
+  },
+  "server": {
+    "host": "localhost",
+    "port": 8080,
+    "max_connections": 1000,
+    "thread_pool_size": 4,
+    "enable_ssl": false,
+    "ssl_cert_path": "",
+    "ssl_key_path": ""
+  },
+  "cache": {
+    "enabled": true,
+    "type": "memory",
+    "max_size_mb": 100,
+    "ttl_seconds": 3600,
+    "cleanup_interval_seconds": 300
+  },
+  "development": {
+    "debug_mode": false,
+    "hot_reload": false,
+    "profiling": false,
+    "memory_leak_detection": false
+  },
+  "bindings": {
+    "java": {
+      "enabled": true,
+      "jvm_options": [
+        "-Xmx512m",
+        "-Xms256m"
+      ],
+      "classpath": [
+        "./java/lib/*"
+      ]
+    },
+    "python": {
+      "enabled": true,
+      "python_path": "",
+      "virtual_env": ""
+    },
+    "rust": {
+      "enabled": true,
+      "features": [
+        "async",
+        "serde"
+      ]
+    }
+  }
+}

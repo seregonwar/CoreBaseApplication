@@ -1,4 +1,5 @@
 #include "SystemMonitor.h"
+#include <chrono>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -21,11 +22,9 @@ SystemResources SystemMonitor::getSystemResourceUsage() {
     SystemResources resources;
     resources.cpuUsagePercent = getCpuUsage();
     getMemoryUsage(resources.availableMemoryBytes, resources.totalMemoryBytes);
-    // TODO: Implementare le altre metriche
-    resources.availableDiskBytes = 0;
-    resources.totalDiskBytes = 0;
-    resources.networkUsagePercent = 0;
-    resources.gpuUsagePercent = 0;
+    getDiskUsage(resources.availableDiskBytes, resources.totalDiskBytes);
+    resources.networkUsagePercent = getNetworkUsage();
+    resources.gpuUsagePercent = getGpuUsage();
     return resources;
 }
 
@@ -71,6 +70,50 @@ void SystemMonitor::getMemoryUsage(double& available, double& total) {
 #else
     available = 0;
     total = 0;
+#endif
+}
+
+void SystemMonitor::getDiskUsage(double& available, double& total) {
+#ifdef _WIN32
+    ULARGE_INTEGER freeBytesAvailable, totalNumberOfBytes, totalNumberOfFreeBytes;
+    if (GetDiskFreeSpaceExW(L"C:\\", &freeBytesAvailable, &totalNumberOfBytes, &totalNumberOfFreeBytes)) {
+        available = (double)freeBytesAvailable.QuadPart;
+        total = (double)totalNumberOfBytes.QuadPart;
+    } else {
+        available = 0;
+        total = 0;
+    }
+#else
+    // Implementazione per Linux/macOS usando statvfs
+    available = 0;
+    total = 0;
+#endif
+}
+
+double SystemMonitor::getNetworkUsage() {
+#ifdef _WIN32
+    // Implementazione semplificata - in un'implementazione reale
+    // si dovrebbe monitorare il traffico di rete nel tempo
+    static double lastBytesReceived = 0;
+    static double lastBytesSent = 0;
+    static auto lastTime = std::chrono::steady_clock::now();
+    
+    // Per ora restituiamo un valore simulato
+    // In una implementazione reale si userebbe GetIfTable2 o WMI
+    return 0.0;
+#else
+    return 0.0;
+#endif
+}
+
+double SystemMonitor::getGpuUsage() {
+#ifdef _WIN32
+    // Implementazione semplificata - in un'implementazione reale
+    // si dovrebbe usare NVML per NVIDIA, ADL per AMD, o WMI
+    // Per ora restituiamo un valore simulato
+    return 0.0;
+#else
+    return 0.0;
 #endif
 }
 

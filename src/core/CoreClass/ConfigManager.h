@@ -53,6 +53,9 @@ private:
     std::unordered_map<std::string, std::string> m_values;
     std::string m_configPath;
     mutable std::mutex m_mutex;
+    
+    // Metodo helper per appiattire JSON annidati
+    void flattenJson(const nlohmann::json& j, const std::string& prefix);
 };
 
 } // namespace CoreNS

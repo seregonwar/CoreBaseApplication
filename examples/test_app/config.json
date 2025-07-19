@@ -1,0 +1,42 @@
+{
+    "application": {
+        "name": "CoreBaseApplication Demo",
+        "version": "1.0.0",
+        "description": "Demo delle funzionalità del Core"
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "logs/app.log",
+        "maxSize": 10485760,
+        "maxFiles": 5
+    },
+    "monitoring": {
+        "updateInterval": 1.0,
+        "thresholds": {
+            "cpu": 80,
+            "memory": 85,
+            "disk": 90
+        }
+    },
+    "gui": {
+        "windowWidth": 800,
+        "windowHeight": 600,
+        "title": "CoreBaseApplication - Monitoraggio Risorse"
+    },
+    "security": {
+        "enabled": true,
+        "auth_type": "basic"
+    },
+    "core": {
+        "log_level": "info",
+        "max_log_buffer": 1000
+    },
+    "ipc": {
+        "default_port": 8080,
+        "max_connections": 10
+    },
+    "resources": {
+        "memory_threshold": 80,
+        "cpu_threshold": 90
+    }
+} 

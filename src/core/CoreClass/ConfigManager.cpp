@@ -32,25 +32,34 @@ bool ConfigManager::loadConfig(const std::string& filePath) {
         nlohmann::json j;
         file >> j;
         
-        // Converti il JSON in coppie chiave-valore
+        // Converti il JSON in coppie chiave-valore con supporto per chiavi annidate
         m_config.clear();
-        for (auto it = j.begin(); it != j.end(); ++it) {
-            if (it->is_string()) {
-                m_config[it.key()] = std::any(it->get<std::string>());
-            } else if (it->is_number_integer()) {
-                m_config[it.key()] = std::any(it->get<int>());
-            } else if (it->is_number_float()) {
-                m_config[it.key()] = std::any(it->get<double>());
-            } else if (it->is_boolean()) {
-                m_config[it.key()] = std::any(it->get<bool>());
-            }
-        }
+        flattenJson(j, "");
         
         m_configPath = filePath;
         return true;
     }
     catch (const std::exception&) {
         return false;
+    }
+}
+
+void ConfigManager::flattenJson(const nlohmann::json& j, const std::string& prefix) {
+    for (auto it = j.begin(); it != j.end(); ++it) {
+        std::string key = prefix.empty() ? it.key() : prefix + "." + it.key();
+        
+        if (it->is_object()) {
+            // Ricorsione per oggetti annidati
+            flattenJson(*it, key);
+        } else if (it->is_string()) {
+            m_config[key] = std::any(it->get<std::string>());
+        } else if (it->is_number_integer()) {
+            m_config[key] = std::any(it->get<int>());
+        } else if (it->is_number_float()) {
+            m_config[key] = std::any(it->get<double>());
+        } else if (it->is_boolean()) {
+            m_config[key] = std::any(it->get<bool>());
+        }
     }
 }
 
@@ -95,7 +104,22 @@ std::string ConfigManager::getConfigString(const std::string& key, const std::st
     auto it = m_config.find(key);
     if (it != m_config.end()) {
         try {
-            return std::any_cast<std::string>(it->second);
+            // Prova prima come stringa
+            if (it->second.type() == typeid(std::string)) {
+                return std::any_cast<std::string>(it->second);
+            }
+            // Converti numeri interi in stringa
+            else if (it->second.type() == typeid(int)) {
+                return std::to_string(std::any_cast<int>(it->second));
+            }
+            // Converti numeri decimali in stringa
+            else if (it->second.type() == typeid(double)) {
+                return std::to_string(std::any_cast<double>(it->second));
+            }
+            // Converti booleani in stringa
+            else if (it->second.type() == typeid(bool)) {
+                return std::any_cast<bool>(it->second) ? "true" : "false";
+            }
         } catch (const std::bad_any_cast&) {}
     }
     return defaultValue;
@@ -225,4 +249,4 @@ template int ConfigManager::getValue<int>(const std::string&, const int&) const;
 template double ConfigManager::getValue<double>(const std::string&, const double&) const;
 template bool ConfigManager::getValue<bool>(const std::string&, const bool&) const;
 
-} // namespace CoreNS 
+} // namespace CoreNS

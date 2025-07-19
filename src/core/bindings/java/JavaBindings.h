@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <memory>
 #include <functional>
+#include "../../CoreClass/ErrorHandler.h"
+#include "../../CoreClass/ConfigManager.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,16 +16,12 @@ extern "C" {
 }
 #endif
 
-// Forward declarations
-class ErrorHandler;
-class ConfigManager;
-
 /**
  * @brief Classe per i bindings tra C++ e Java
  */
 class JavaBindings {
 public:
-    JavaBindings(ErrorHandler& errorHandler, ConfigManager& configManager);
+    JavaBindings(CoreNS::ErrorHandler& errorHandler, CoreNS::ConfigManager& configManager);
     ~JavaBindings();
 
     // Funzioni di ErrorHandler esposte a Java
@@ -39,10 +37,16 @@ public:
     void error(const std::string& message);
     void critical(const std::string& message);
 
+    // ConfigManager wrapper methods
+    bool loadConfig(const std::string& filename);
+    std::string getValue(const std::string& key);
+    void setValue(const std::string& key, const std::string& value);
+    bool saveConfig(const std::string& filename);
+
     // JNI setup (scheletro)
     static void registerNatives(JNIEnv* env);
 
 private:
-    ErrorHandler& m_errorHandler;
-    ConfigManager& m_configManager;
+    CoreNS::ErrorHandler& m_errorHandler;
+    CoreNS::ConfigManager& m_configManager;
 };

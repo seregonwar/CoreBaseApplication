@@ -1,0 +1,95 @@
+# GitHub Pages Configuration for CoreBaseApplication (CBA)
+title: CoreBaseApplication (CBA)
+description: A modern, robust C++ framework for building scalable enterprise applications
+url: "https://seregonwar.github.io"
+baseurl: "/CoreBaseApplication-CBA"
+
+# Theme
+theme: minima
+
+# Markdown processor
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    css_class: 'highlight'
+    span:
+      line_numbers: false
+    block:
+      line_numbers: true
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+  - jekyll-relative-links
+
+# Navigation
+header_pages:
+  - docs/getting-started/quick-start.md
+  - docs/architecture/overview.md
+  - docs/modules/core-api.md
+  - docs/examples/basic-usage.md
+  - docs/api/reference.md
+
+# Collections
+collections:
+  docs:
+    output: true
+    permalink: /:collection/:name/
+
+# Defaults
+defaults:
+  - scope:
+      path: "docs"
+      type: "pages"
+    values:
+      layout: "page"
+  - scope:
+      path: "docs/**/*.md"
+    values:
+      layout: "page"
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - build/
+  - CMakeLists.txt
+  - "*.cpp"
+  - "*.h"
+  - "*.hpp"
+  - src/
+  - include/
+  - tests/
+  - examples/
+  - scripts/
+
+# Include
+include:
+  - _pages
+
+# SEO
+author:
+  name: CBA Team
+  email: support@corebaseapp.com
+
+social:
+  name: CoreBaseApplication
+  links:
+    - https://github.com/seregonwar/CoreBaseApplication-CBA
+    - https://discord.gg/cba-community
+
+# Google Analytics (optional)
+# google_analytics: UA-XXXXXXXX-X
+
+# Mermaid support
+mermaid:
+  src: 'https://unpkg.com/mermaid@8.14.0/dist/mermaid.min.js'

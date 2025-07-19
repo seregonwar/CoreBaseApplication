@@ -1,0 +1,22 @@
+{
+    "name": "cpp_project",
+    "description": "Template per un progetto C++ base",
+    "version": "1.0.0",
+    "variables": [
+        {
+            "name": "project_name",
+            "description": "Nome del progetto",
+            "default": "MyProject"
+        },
+        {
+            "name": "author",
+            "description": "Nome dell'autore",
+            "default": "Unknown"
+        },
+        {
+            "name": "version",
+            "description": "Versione del progetto",
+            "default": "1.0.0"
+        }
+    ]
+} 
