@@ -1,0 +1,155 @@
+{
+  "name": "@corebase/react",
+  "version": "1.0.0",
+  "description": "React bindings for CoreBase - System monitoring, configuration management, and networking components",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "build:watch": "rollup -c -w",
+    "dev": "rollup -c -w",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "lint:check": "eslint src --ext .ts,.tsx",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\"",
+    "type-check": "tsc --noEmit",
+    "type-check:watch": "tsc --noEmit --watch",
+    "clean": "rimraf dist coverage .eslintcache",
+    "prepublishOnly": "npm run clean && npm run build && npm run test:ci",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "validate": "npm run type-check && npm run lint:check && npm run format:check && npm run test:ci",
+    "precommit": "npm run validate"
+  },
+  "keywords": [
+    "react",
+    "corebase",
+    "system-monitoring",
+    "configuration",
+    "networking",
+    "hooks",
+    "components",
+    "typescript",
+    "cross-platform"
+  ],
+  "author": "CoreBase Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/corebase/corebase.git",
+    "directory": "src/core/bindings/react"
+  },
+  "bugs": {
+    "url": "https://github.com/corebase/corebase/issues"
+  },
+  "homepage": "https://github.com/corebase/corebase#readme",
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-react": "^7.22.0",
+    "@babel/preset-typescript": "^7.23.0",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.5",
+    "@storybook/addon-actions": "^7.5.0",
+    "@storybook/addon-controls": "^7.5.0",
+    "@storybook/addon-docs": "^7.5.0",
+    "@storybook/addon-essentials": "^7.5.0",
+    "@storybook/addon-viewport": "^7.5.0",
+    "@storybook/addon-a11y": "^7.5.0",
+    "@storybook/addon-backgrounds": "^7.5.0",
+    "@storybook/addon-measure": "^7.5.0",
+    "@storybook/addon-outline": "^7.5.0",
+    "@storybook/react": "^7.5.0",
+    "@storybook/react-webpack5": "^7.5.0",
+    "@testing-library/jest-dom": "^6.1.4",
+    "@testing-library/react": "^14.1.0",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/jest": "^29.5.8",
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@typescript-eslint/eslint-plugin": "^6.10.0",
+    "@typescript-eslint/parser": "^6.10.0",
+    "babel-jest": "^29.7.0",
+    "eslint": "^8.53.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-jsx-a11y": "^6.8.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-storybook": "^0.6.15",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "ts-jest": "^29.1.0",
+    "prettier": "^3.0.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "rimraf": "^5.0.5",
+    "rollup": "^4.3.0",
+    "rollup-plugin-dts": "^6.1.0",
+    "rollup-plugin-peer-deps-external": "^2.2.4",
+    "storybook": "^7.5.0",
+    "tslib": "^2.6.2",
+    "typescript": "^5.2.2"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "jest": {
+      "preset": "ts-jest",
+      "testEnvironment": "jsdom",
+      "setupFilesAfterEnv": [
+        "@testing-library/jest-dom"
+      ],
+      "testMatch": [
+        "<rootDir>/src/**/__tests__/**/*.{js,jsx,ts,tsx}",
+        "<rootDir>/src/**/*.(test|spec).{js,jsx,ts,tsx}"
+      ],
+      "moduleNameMapping": {
+        "\\.(css|less|scss|sass)$": "identity-obj-proxy",
+        "\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$": "<rootDir>/src/__tests__/__mocks__/fileMock.js",
+        "@corebase/nodejs": "<rootDir>/src/__tests__/__mocks__/@corebase/nodejs"
+      },
+      "collectCoverageFrom": [
+        "src/**/*.{ts,tsx}",
+        "!src/**/*.d.ts",
+        "!src/**/*.stories.{ts,tsx}",
+        "!src/__tests__/**",
+        "!src/index.ts"
+      ],
+      "testTimeout": 30000,
+      "maxWorkers": 1
+    }
+}

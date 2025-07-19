@@ -1,0 +1,33 @@
+[package]
+name = "corebase-bindings"
+version = "0.1.0"
+edition = "2025"
+authors = ["CoreBaseApplication Team"]
+description = "Rust bindings for CoreBaseApplication framework"
+license = "MIT"
+repository = "https://github.com/seregonwar/CoreBaseApplication"
+
+[lib]
+name = "corebase_bindings"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+libc = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"], optional = true }
+log = "0.4"
+env_logger = "0.10"
+thiserror = "1.0"
+anyhow = "1.0"
+
+[features]
+default = ["async"]
+async = ["tokio"]
+
+[build-dependencies]
+cc = "1.0"
+pkg-config = "0.3"
+
+[dev-dependencies]
+tempfile = "3.0"
